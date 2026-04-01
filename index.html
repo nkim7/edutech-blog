@@ -1,0 +1,462 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Seeing in Pixels — Computer Vision Blog</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Unbounded:wght@700;900&family=Syne:wght@400;600;700&family=Merriweather:ital,wght@0,300;0,400;0,700;1,300;1,400&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<!-- NOISE TEXTURE OVERLAY -->
+<div class="noise"></div>
+
+<!-- NAV -->
+<nav class="nav">
+  <a href="#" class="nav-logo">Seeing in <em>Pixels</em></a>
+  <div class="nav-links">
+    <a href="#part0">Convolution</a>
+    <a href="#part1">Filters</a>
+    <a href="#part2">Canny</a>
+    <a href="#part3">Tuning</a>
+  </div>
+  <div class="nav-tag">CS × Vision</div>
+</nav>
+
+<!-- HERO -->
+<section class="hero" id="top">
+  <div class="hero-bg">
+    <canvas id="heroCanvas"></canvas>
+  </div>
+  <div class="hero-content">
+    <div class="hero-kicker">
+      <span class="hero-kicker-dot"></span>
+      University Computer Vision — Interactive Explainer
+    </div>
+    <h1 class="hero-title">
+      <span class="hero-title-line">Seeing</span>
+      <span class="hero-title-line italic">in Pixels</span>
+    </h1>
+    <p class="hero-sub">From convolution kernels to Canny edges — a hands-on guide to how machines learn to see the world through mathematics.</p>
+    <a href="#part0" class="hero-cta">Begin →</a>
+  </div>
+  <div class="hero-bottom-rule">
+    <span class="mono-tag">001 — Spatial Filters</span>
+    <span class="mono-tag">002 — Canny Detection</span>
+    <span class="mono-tag">003 — Hyperparameters</span>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════════════════════ PART 0 -->
+<section class="part" id="part0">
+  <div class="part-header">
+    <div class="part-number">00</div>
+    <div class="part-header-text">
+      <h2 class="part-title">What is <em>convolution?</em></h2>
+      <p class="part-intro">An image is a 2D grid of numbers. Convolution slides a small matrix — the <strong>kernel</strong> — across every position, replacing each pixel with a weighted sum of its neighbourhood. The kernel's weights decide what structure is detected.</p>
+    </div>
+  </div>
+
+  <!-- Concept cards -->
+  <div class="concept-cards" id="part0-concepts">
+    <div class="concept-card">
+      <div class="concept-card-num">01</div>
+      <h3>Window size</h3>
+      <p>How many neighbours contribute to each output pixel. A 3×3 kernel looks 1 pixel in every direction; a 5×5 looks 2. Larger = broader patterns, more compute, potential blur of fine details.</p>
+    </div>
+    <div class="concept-card">
+      <div class="concept-card-num">02</div>
+      <h3>Stride</h3>
+      <p>How many pixels the kernel jumps each step. Stride 1 = dense, overlapping. Stride 2 = the output shrinks by ~half. Large strides downsample — common in CNN pooling layers.</p>
+    </div>
+    <div class="concept-card">
+      <div class="concept-card-num">03</div>
+      <h3>Padding</h3>
+      <p><strong>None (valid):</strong> output shrinks by <em>kernel_size − 1</em>. <strong>Zero-pad (same):</strong> zeros border the input so the output stays the same size as the input.</p>
+    </div>
+  </div>
+
+  <!-- Controls -->
+  <div class="anim-controls-bar">
+    <div class="ctrl-group">
+      <label class="ctrl-label">Input size</label>
+      <div class="select-wrap">
+        <select id="inSize">
+          <option value="4">4×4</option>
+          <option value="5" selected>5×5</option>
+          <option value="6">6×6</option>
+          <option value="7">7×7</option>
+        </select>
+      </div>
+    </div>
+    <div class="ctrl-group">
+      <label class="ctrl-label">Window</label>
+      <div class="select-wrap">
+        <select id="ks">
+          <option value="1">1×1</option>
+          <option value="3" selected>3×3</option>
+          <option value="5">5×5</option>
+        </select>
+      </div>
+    </div>
+    <div class="ctrl-group">
+      <label class="ctrl-label">Stride</label>
+      <div class="select-wrap">
+        <select id="stride">
+          <option value="1" selected>1</option>
+          <option value="2">2</option>
+          <option value="3">3</option>
+        </select>
+      </div>
+    </div>
+    <div class="ctrl-group">
+      <label class="ctrl-label">Padding</label>
+      <div class="select-wrap">
+        <select id="padding">
+          <option value="0" selected>none (valid)</option>
+          <option value="1">zero-pad (same)</option>
+        </select>
+      </div>
+    </div>
+    <div class="ctrl-group">
+      <label class="ctrl-label">Operation</label>
+      <div class="select-wrap">
+        <select id="opMode">
+          <option value="edge">Edge detect</option>
+          <option value="blur">Blur (Gaussian)</option>
+          <option value="avgpool">Avg pool</option>
+          <option value="identity">Identity</option>
+        </select>
+      </div>
+    </div>
+  </div>
+
+  <!-- Impossible state notice -->
+  <div class="impossible-notice" id="impossibleNotice" style="display:none">
+    <span class="impossible-icon">!</span>
+    <span id="impossibleText"></span>
+  </div>
+
+  <!-- Animation area -->
+  <div class="anim-area">
+    <div class="anim-canvas-col">
+      <div class="canvas-label-row">
+        <span class="canvas-label">Input</span>
+        <span class="canvas-sublabel" id="inputSizeLabel">5×5</span>
+      </div>
+      <canvas id="animIn"></canvas>
+    </div>
+    <div class="anim-arrow">
+      <svg width="40" height="16" viewBox="0 0 40 16"><path d="M0 8h36M30 2l6 6-6 6" stroke="currentColor" stroke-width="1.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      <span class="anim-kernel-small" id="animKernelSmall"></span>
+    </div>
+    <div class="anim-canvas-col">
+      <div class="canvas-label-row">
+        <span class="canvas-label">Output</span>
+        <span class="canvas-sublabel" id="outputSizeLabel">3×3</span>
+      </div>
+      <canvas id="animOut"></canvas>
+    </div>
+  </div>
+
+  <!-- Slider / playback -->
+  <div class="playback-bar">
+    <button class="play-btn" id="abtn" onclick="togglePlay()">
+      <span id="playIcon">▶</span>
+    </button>
+    <div class="slider-track-wrap">
+      <input type="range" id="posSlider" min="0" value="0" step="1" class="pos-slider">
+    </div>
+    <span class="pos-label" id="posLabel">0 / 0</span>
+    <button class="reset-btn" onclick="resetAnim()">↺ Reset</button>
+  </div>
+
+  <!-- Computation detail card -->
+  <div class="computation-card">
+    <div class="computation-kernel-col">
+      <div class="comp-section-label">Kernel applied</div>
+      <div id="kernelDisplay" class="kernel-display-grid"></div>
+      <div class="kernel-op-label" id="kernelOpLabel"></div>
+    </div>
+    <div class="computation-eq-col">
+      <div class="comp-section-label">Computation at current position</div>
+      <div class="comp-eq" id="animCalc">Drag the slider or press Play to step through.</div>
+    </div>
+    <div class="computation-result-col">
+      <div class="comp-section-label">Output value</div>
+      <div class="comp-result-num" id="animResult">—</div>
+      <div class="comp-result-sub" id="animResultSub"></div>
+    </div>
+  </div>
+  <div class="anim-note" id="animNote">Choose settings and press Play, or drag the slider.</div>
+
+  <!-- Avg pool callout -->
+  <div class="callout-box">
+    <span class="callout-accent">Average pooling</span> — switch Operation to "Avg pool" to see this CNN primitive. Every weight = 1/k² where k is the window size. The output is the mean pixel value in each window — spatial downsampling that preserves rough structure. Used to reduce feature map size between layers.
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════════════════════ PART 1 -->
+<section class="part part-dark" id="part1">
+  <div class="part-header">
+    <div class="part-number">01</div>
+    <div class="part-header-text">
+      <h2 class="part-title">Spatial <em>filters</em></h2>
+      <p class="part-intro">Every filter is just a choice of weights in a convolution kernel. The operation is always the same weighted sliding sum — only the numbers change. Each set of numbers asks a different question about the neighbourhood.</p>
+    </div>
+  </div>
+
+  <!-- General equation -->
+  <div class="general-eq-block">
+    <div class="eq-display">(I ★ k)[x, y] = Σ<sub>i=−n</sub><sup>n</sup> Σ<sub>j=−n</sub><sup>n</sup> I[x+i, y+j] · k[i, j]</div>
+    <div class="eq-legend">
+      <div class="eq-term"><strong>I</strong> — input image, 2D array of pixel values (0–255)</div>
+      <div class="eq-term"><strong>k</strong> — kernel matrix, defines what is detected</div>
+      <div class="eq-term"><strong>x, y</strong> — position of the output pixel being computed</div>
+      <div class="eq-term"><strong>n</strong> — half the kernel size (n=1 for 3×3, n=2 for 5×5)</div>
+    </div>
+  </div>
+
+  <p class="part-sub-intro">Draw on the canvas below, then select a filter. The equation, kernel, description, and a worked example update instantly.</p>
+
+  <!-- Draw controls -->
+  <div class="draw-controls">
+    <label class="ctrl-label">Brush size</label>
+    <input type="range" id="bsz" min="2" max="28" value="10" step="1" oninput="BS=+this.value;document.getElementById('bv').textContent=this.value" class="inline-range">
+    <span class="range-val" id="bv">10</span>
+    <button class="clear-btn" onclick="clearDraw()">Clear ↺</button>
+  </div>
+
+  <div class="filter-workspace">
+    <div class="draw-area">
+      <div class="canvas-label-row">
+        <span class="canvas-label">Draw here</span>
+      </div>
+      <canvas id="dc" width="280" height="210" class="draw-canvas"></canvas>
+    </div>
+    <div class="filter-pills-col">
+      <div class="filter-pills" id="fpills"></div>
+    </div>
+    <div class="output-area">
+      <div class="canvas-label-row">
+        <span class="canvas-label" id="p1-outlabel">Output</span>
+      </div>
+      <canvas id="oc" width="280" height="210" class="output-canvas"></canvas>
+    </div>
+  </div>
+
+  <!-- Filter explanation card -->
+  <div class="filter-card" id="filterCard">
+    <div class="filter-card-eq-row">
+      <div class="comp-section-label">Specific equation</div>
+      <div class="filter-eq" id="feq"></div>
+    </div>
+    <div class="filter-card-body">
+      <div class="filter-kernel-col">
+        <div class="comp-section-label">Kernel</div>
+        <div id="kgrid" class="kernel-display-grid"></div>
+        <div class="kernel-op-label" id="klabel"></div>
+      </div>
+      <div class="filter-desc-col">
+        <div class="comp-section-label">What this kernel computes</div>
+        <div id="fdesc" class="filter-desc-text"></div>
+      </div>
+      <div class="filter-example-col">
+        <div class="comp-section-label">Example calculation</div>
+        <div id="calcExample" class="calc-example-wrap"></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════════════════════ BRIDGE -->
+<div class="bridge-section">
+  <div class="bridge-inner">
+    <div class="bridge-num">↓</div>
+    <p class="bridge-text">These filters don't exist in isolation. <em>Real vision pipelines chain them together.</em> Canny edge detection is the canonical example — it takes a photograph and returns a precise map of every meaningful boundary, by composing the blur and gradient filters you just learned.</p>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════ PART 2 + 3 -->
+<section class="part" id="part2">
+  <div class="part-header">
+    <div class="part-number">02</div>
+    <div class="part-header-text">
+      <h2 class="part-title">Canny edge <em>detection</em></h2>
+      <p class="part-intro">An edge is where pixel intensity changes rapidly. John Canny (1986) designed a four-step pipeline that finds these transitions reliably, even in noisy photographs. Each step uses the filter operations from Part 1.</p>
+    </div>
+  </div>
+
+  <!-- Pipeline steps overview -->
+  <div class="pipeline-steps">
+    <div class="pipeline-step">
+      <div class="pipeline-step-num" style="--accent-local:#5DCAA5">01</div>
+      <div class="pipeline-step-name">Gaussian blur</div>
+      <div class="pipeline-step-desc">Remove noise before differentiation — otherwise the derivative fires on every sensor spike</div>
+    </div>
+    <div class="pipeline-arrow">→</div>
+    <div class="pipeline-step">
+      <div class="pipeline-step-num" style="--accent-local:#378ADD">02</div>
+      <div class="pipeline-step-name">Sobel gradient</div>
+      <div class="pipeline-step-desc">Compute intensity change magnitude |∇I| and direction θ at every pixel</div>
+    </div>
+    <div class="pipeline-arrow">→</div>
+    <div class="pipeline-step">
+      <div class="pipeline-step-num" style="--accent-local:#EF9F27">03</div>
+      <div class="pipeline-step-name">NMS — thinning</div>
+      <div class="pipeline-step-desc">Keep only the sharpest peak along gradient direction; collapse ridges to single-pixel lines</div>
+    </div>
+    <div class="pipeline-arrow">→</div>
+    <div class="pipeline-step">
+      <div class="pipeline-step-num" style="--accent-local:#ff4d1c">04</div>
+      <div class="pipeline-step-name">Hysteresis</div>
+      <div class="pipeline-step-desc">Strong edges survive; weak edges survive only if connected to a strong neighbour</div>
+    </div>
+  </div>
+
+  <p class="part-sub-intro">Choose an image source below and step through each stage to see what every operation contributes.</p>
+
+  <!-- Source selector -->
+  <div class="src-bar">
+    <div class="src-tabs" id="srcTabs">
+      <button class="src-tab on" data-src="sample" onclick="setSrc('sample')">Sample images</button>
+      <button class="src-tab" data-src="upload" onclick="setSrc('upload')">Upload your own</button>
+      <button class="src-tab" data-src="cam" onclick="setSrc('cam')">Webcam</button>
+    </div>
+  </div>
+  <div id="src-sample">
+    <div class="pills" id="spills"></div>
+  </div>
+  <div id="src-upload" style="display:none">
+    <div class="upload-zone" onclick="document.getElementById('fin').click()">
+      <div class="upload-icon">+</div>
+      <div class="upload-title">Click to choose an image</div>
+      <div class="upload-sub">Any photo — faces, architecture, textures, nature</div>
+      <input type="file" id="fin" accept="image/*" style="display:none" onchange="loadFile(this)">
+    </div>
+  </div>
+  <div id="src-cam" style="display:none">
+    <div class="cam-row">
+      <button class="cam-btn" id="cbtn" onclick="toggleCam()">Start camera</button>
+      <span class="cam-status" id="cstat"></span>
+    </div>
+    <video id="vid" autoplay muted playsinline style="display:none;width:0;height:0"></video>
+  </div>
+
+  <!-- Step bar -->
+  <div class="step-bar" id="p2stepbar"></div>
+
+  <!-- Canvases -->
+  <div class="canny-canvases">
+    <div class="canny-canvas-col">
+      <div class="canvas-label-row"><span class="canvas-label">Input</span></div>
+      <canvas id="cin" width="340" height="255"></canvas>
+    </div>
+    <div class="canny-canvas-col">
+      <div class="canvas-label-row">
+        <span class="canvas-label" id="p2-outlabel">Full Canny</span>
+      </div>
+      <canvas id="cout" width="340" height="255"></canvas>
+    </div>
+  </div>
+  <div class="step-note" id="p2-note"></div>
+</section>
+
+<!-- ═══════════════════════════════════════════════════ PART 3 -->
+<section class="part part-dark" id="part3">
+  <div class="part-header">
+    <div class="part-number">03</div>
+    <div class="part-header-text">
+      <h2 class="part-title">Hyper&shy;parameters &amp; <em>tuning</em></h2>
+      <p class="part-intro">A <strong>hyperparameter</strong> is a value you set before the algorithm runs — not learned from data. It shapes what the algorithm can find. Canny has three. Tuning means choosing values that maximise true edges while minimising false ones from noise.</p>
+    </div>
+  </div>
+
+  <!-- Param cards -->
+  <div class="param-cards">
+    <div class="param-card">
+      <div class="param-card-label">σ — Gaussian blur radius</div>
+      <p>Larger σ = wider smoothing kernel = noise suppressed more aggressively. But fine edges merge. σ=0 skips blur entirely — watch what happens.</p>
+      <div class="param-eq">G_σ(x,y) = (1/2πσ²)·exp(−(x²+y²)/2σ²)<br>kernel radius r = ⌈3σ⌉</div>
+    </div>
+    <div class="param-card">
+      <div class="param-card-label">T<sub>hi</sub> &amp; T<sub>lo</sub> — dual thresholds</div>
+      <p>T<sub>hi</sub> (% of max gradient): strong-edge floor. T<sub>lo</sub> as % of T<sub>hi</sub>: weak-edge floor. Hysteresis: weak pixels survive only if 8-connected to a strong pixel.</p>
+      <div class="param-eq">STRONG  if |∇I|/max ≥ T_hi<br>WEAK    if T_lo·T_hi ≤ |∇I|/max &lt; T_hi<br>REJECT  otherwise</div>
+    </div>
+  </div>
+
+  <p class="part-sub-intro" style="color:var(--muted-dark)">Step through the pipeline. Each step reveals which parameters affect it. At Full Canny, all three are live — plus presets to explore classic failure modes.</p>
+
+  <div class="step-bar" id="p3stepbar"></div>
+
+  <div class="canny-canvases">
+    <div class="canny-canvas-col">
+      <div class="canvas-label-row"><span class="canvas-label">Same input</span></div>
+      <canvas id="p3in" width="340" height="255"></canvas>
+    </div>
+    <div class="canny-canvas-col">
+      <div class="canvas-label-row">
+        <span class="canvas-label" id="p3-outlabel">Full Canny</span>
+      </div>
+      <canvas id="p3out" width="340" height="255"></canvas>
+    </div>
+  </div>
+
+  <!-- Controls -->
+  <div class="tuning-controls" id="p3ctrlCard">
+    <div class="tuning-ctrl-group" id="p3sigma-wrap">
+      <div class="tuning-param-name">σ — blur radius <span class="tuning-value-badge" id="p3sv">1</span></div>
+      <div class="tuning-slider-row">
+        <span class="tuning-range-label">0 (off)</span>
+        <input type="range" id="p3sigma" min="0" max="6" value="1" step="1" oninput="p3update()" class="tuning-range">
+        <span class="tuning-range-label">6 (heavy)</span>
+      </div>
+    </div>
+    <div class="tuning-ctrl-group" id="p3thr-wrap" style="display:none">
+      <div class="tuning-param-name">T<sub>hi</sub> — strong edge % <span class="tuning-value-badge" id="p3thv">20%</span></div>
+      <div class="tuning-slider-row">
+        <span class="tuning-range-label">5%</span>
+        <input type="range" id="p3thi" min="5" max="90" value="20" step="1" oninput="p3update()" class="tuning-range">
+        <span class="tuning-range-label">90%</span>
+      </div>
+      <div class="tuning-param-name" style="margin-top:.75rem">T<sub>lo</sub> ratio (% of T<sub>hi</sub>) <span class="tuning-value-badge" id="p3tlv">40%</span></div>
+      <div class="tuning-slider-row">
+        <span class="tuning-range-label">10%</span>
+        <input type="range" id="p3tlo" min="10" max="90" value="40" step="1" oninput="p3update()" class="tuning-range">
+        <span class="tuning-range-label">90%</span>
+      </div>
+    </div>
+    <div class="tuning-presets" id="p3presets" style="display:none">
+      <div class="tuning-presets-label">Explore presets</div>
+      <div class="tuning-preset-btns">
+        <button class="preset-btn" onclick="p3preset(1,20,40)">Default balance</button>
+        <button class="preset-btn preset-danger" onclick="p3preset(0,20,40)">σ=0 no blur</button>
+        <button class="preset-btn" onclick="p3preset(4,20,40)">σ=4 heavy blur</button>
+        <button class="preset-btn" onclick="p3preset(1,55,40)">High T_hi</button>
+        <button class="preset-btn" onclick="p3preset(1,8,40)">Low T_hi</button>
+        <button class="preset-btn preset-danger" onclick="p3preset(1,20,85)">T_lo ≈ T_hi</button>
+        <button class="preset-btn" onclick="p3preset(1,20,15)">Low T_lo (wide band)</button>
+      </div>
+    </div>
+  </div>
+  <div class="step-note" id="p3-note"></div>
+</section>
+
+<!-- FOOTER -->
+<footer class="footer">
+  <div class="footer-left">
+    <div class="footer-title">Seeing in <em>Pixels</em></div>
+    <div class="footer-sub">An interactive computer vision explainer for CS students</div>
+  </div>
+  <div class="footer-right">
+    <span class="footer-tag">Convolution · Filters · Canny · Hyperparameters</span>
+  </div>
+</footer>
+
+<script src="script.js"></script>
+</body>
+</html>
