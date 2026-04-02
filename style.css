@@ -279,13 +279,18 @@ sub, sup { font-size: 0.8rem; }   /* min 12.8px */
 }
 
 /* ════════════════════════════════════════
-   SECTION STRUCTURE
+   SECTION STRUCTURE — viewport-fit layout
 ════════════════════════════════════════ */
 .part {
-  padding: 6rem var(--pad);
+  height: 100vh;
+  padding: calc(58px + 1rem) var(--pad) 1rem;
   border-bottom: 3px solid transparent;
   border-image: linear-gradient(90deg, var(--purple) 0%, var(--teal-hi) 50%, var(--gold) 100%) 1;
   background: var(--bg);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  box-sizing: border-box;
 }
 .part-dark {
   background: var(--dk-bg);
@@ -295,15 +300,16 @@ sub, sup { font-size: 0.8rem; }   /* min 12.8px */
 
 .part-header {
   display: grid;
-  grid-template-columns: 110px 1fr;
-  gap: 2.25rem;
-  margin-bottom: 4rem;
+  grid-template-columns: 80px 1fr;
+  gap: 1.5rem;
+  margin-bottom: 1rem;
   align-items: start;
+  flex-shrink: 0;
 }
 .part-number {
   font-family: var(--display);
   font-weight: 900;
-  font-size: 5rem;
+  font-size: 3.5rem;
   line-height: .9;
   letter-spacing: -.02em;
   background: linear-gradient(135deg, var(--purple), var(--teal-hi));
@@ -324,7 +330,7 @@ sub, sup { font-size: 0.8rem; }   /* min 12.8px */
 .part-title {
   font-family: var(--display);
   font-weight: 900;
-  font-size: clamp(2rem, 4.5vw, 3.8rem);
+  font-size: clamp(1.5rem, 3vw, 2.5rem);
   line-height: 1.08;
   letter-spacing: -.01em;
   color: var(--ink);
@@ -339,10 +345,10 @@ sub, sup { font-size: 0.8rem; }   /* min 12.8px */
 
 .part-intro {
   font-family: var(--sans);
-  font-size: 1.05rem;        /* ~12.6pt */
-  line-height: 1.78;
+  font-size: 0.95rem;
+  line-height: 1.72;
   color: var(--ink-soft);
-  max-width: 660px;
+  max-width: 100%;
 }
 .part-dark .part-intro { color: var(--dk-muted); }
 
@@ -361,21 +367,16 @@ sub, sup { font-size: 0.8rem; }   /* min 12.8px */
 ════════════════════════════════════════ */
 .concept-cards {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 1.25rem;
-  margin-bottom: 3rem;
+  grid-template-columns: 1fr;
+  gap: .875rem;
+  margin-bottom: 1rem;
 }
 .concept-card {
   background: var(--surface);
-  padding: 2rem 1.75rem;
+  padding: 1.25rem 1.5rem;
   border-radius: var(--rad);
   border: 1.5px solid var(--border);
   box-shadow: 0 2px 16px rgba(30,46,58,.06);
-  transition: transform .2s, box-shadow .2s;
-}
-.concept-card:hover {
-  transform: translateY(-3px);
-  box-shadow: 0 8px 28px rgba(30,46,58,.10);
 }
 .concept-card-num {
   font-family: var(--sans);
@@ -389,17 +390,17 @@ sub, sup { font-size: 0.8rem; }   /* min 12.8px */
 .concept-card h3 {
   font-family: var(--display);
   font-weight: 700;
-  font-size: 1.05rem;        /* ~12.6pt */
+  font-size: 1.1rem;
   letter-spacing: -.01em;
-  margin-bottom: .7rem;
+  margin-bottom: .55rem;
   color: var(--ink);
   line-height: 1.25;
 }
 .concept-card p {
   font-family: var(--sans);
-  font-size: 0.95rem;        /* ~11.4pt → 15.2px */
+  font-size: 1.05rem;
   color: var(--muted2);
-  line-height: 1.72;
+  line-height: 1.78;
 }
 
 /* ════════════════════════════════════════
@@ -652,8 +653,8 @@ sub, sup { font-size: 0.8rem; }   /* min 12.8px */
    PART 1: GENERAL EQUATION BLOCK
 ════════════════════════════════════════ */
 .general-eq-block {
-  margin: 0 0 3rem;
-  padding: 2.25rem 2.5rem 2rem;
+  margin: 0 0 1.25rem;
+  padding: 1.5rem 1.75rem 1.25rem;
   background: var(--dk-bg);
   color: var(--dk-ink);
   border-radius: var(--rad);
@@ -764,7 +765,7 @@ sub, sup { font-size: 0.8rem; }   /* min 12.8px */
   background: var(--dk-bg2);
   border: 1.5px solid var(--dk-border);
   border-radius: var(--rad);
-  padding: 2rem; margin-top: .75rem;
+  padding: 1.25rem 1.5rem; margin-top: .5rem;
   box-shadow: 0 4px 20px rgba(30,46,58,.12);
 }
 .filter-card-eq-row { margin-bottom: 1.5rem; }
@@ -783,8 +784,8 @@ sub, sup { font-size: 0.8rem; }   /* min 12.8px */
   gap: 2rem; align-items: start;
 }
 .filter-desc-text {
-  font-family: var(--sans); font-size: 0.95rem;
-  color: var(--dk-muted); line-height: 1.78;
+  font-family: var(--sans); font-size: 1.05rem;
+  color: var(--dk-muted); line-height: 1.8;
 }
 .calc-example-wrap {
   display: flex; align-items: center;
@@ -835,18 +836,13 @@ sub, sup { font-size: 0.8rem; }   /* min 12.8px */
   gap: .875rem; flex-wrap: wrap; margin-bottom: 2.5rem;
 }
 .pipeline-step {
-  flex: 1; min-width: 155px;
-  padding: 1.5rem 1.4rem 1.75rem;
+  flex: 1; min-width: 120px;
+  padding: 1rem 1.1rem 1.25rem;
   background: var(--surface);
   border: 1.5px solid var(--border);
   border-radius: var(--rad);
   border-top: 3px solid var(--accent-local, var(--purple));
   box-shadow: 0 2px 12px rgba(30,46,58,.06);
-  transition: transform .2s, box-shadow .2s;
-}
-.pipeline-step:hover {
-  transform: translateY(-3px);
-  box-shadow: 0 8px 24px rgba(30,46,58,.10);
 }
 .pipeline-step-num {
   font-family: var(--sans); font-weight: 700;
@@ -856,12 +852,12 @@ sub, sup { font-size: 0.8rem; }   /* min 12.8px */
 }
 .pipeline-step-name {
   font-family: var(--display); font-weight: 700;
-  font-size: 1rem; letter-spacing: -.01em;
-  color: var(--ink); margin-bottom: .5rem; line-height: 1.2;
+  font-size: 1.05rem; letter-spacing: -.01em;
+  color: var(--ink); margin-bottom: .4rem; line-height: 1.2;
 }
 .pipeline-step-desc {
-  font-family: var(--sans); font-size: 0.9rem;
-  color: var(--muted2); line-height: 1.7;
+  font-family: var(--sans); font-size: 0.975rem;
+  color: var(--muted2); line-height: 1.72;
 }
 .pipeline-arrow {
   font-size: 1.4rem; color: var(--muted);
@@ -985,13 +981,13 @@ sub, sup { font-size: 0.8rem; }   /* min 12.8px */
 ════════════════════════════════════════ */
 .step-note {
   font-family: var(--sans);
-  font-size: 0.95rem; color: var(--muted2);
-  line-height: 1.75; margin-bottom: 1.25rem;
+  font-size: 1.05rem; color: var(--muted2);
+  line-height: 1.8; margin-bottom: .875rem;
   padding: 1rem 1.4rem;
   background: var(--surface);
   border-left: 3px solid var(--purple);
   border-radius: 0 var(--rad-sm) var(--rad-sm) 0;
-  min-height: 56px;
+  min-height: 52px;
 }
 .part-dark .step-note {
   background: var(--dk-bg3); color: var(--dk-muted);
@@ -1018,8 +1014,8 @@ sub, sup { font-size: 0.8rem; }   /* min 12.8px */
   color: var(--gold); margin-bottom: .875rem;
 }
 .param-card p {
-  font-family: var(--sans); font-size: 0.95rem;
-  color: var(--dk-muted); line-height: 1.78; margin-bottom: 1rem;
+  font-family: var(--sans); font-size: 1.05rem;
+  color: var(--dk-muted); line-height: 1.8; margin-bottom: .875rem;
 }
 .param-eq {
   font-family: var(--mono); font-size: 0.875rem; color: var(--dk-muted);
@@ -1131,16 +1127,11 @@ sub, sup { font-size: 0.8rem; }   /* min 12.8px */
 ════════════════════════════════════════ */
 @media (max-width: 900px) {
   :root { --pad: 1.75rem; }
-  .concept-cards { grid-template-columns: 1fr; gap: 1rem; }
   .eq-legend { grid-template-columns: 1fr 1fr; }
-  .filter-workspace { grid-template-columns: 1fr; }
-  .filter-pills-col { flex-direction: row; }
-  .filter-pills { flex-direction: row; flex-wrap: wrap; }
   .filter-card-body { grid-template-columns: 1fr; }
   .pipeline-steps { flex-direction: column; }
   .pipeline-arrow { display: none; }
   .canny-canvases { grid-template-columns: 1fr; }
-  .param-cards { grid-template-columns: 1fr; }
   .part-header { grid-template-columns: 1fr; }
   .part-number { font-size: 3rem; }
   .nav-links { display: none; }
@@ -1151,7 +1142,7 @@ sub, sup { font-size: 0.8rem; }   /* min 12.8px */
 }
 @media (max-width: 600px) {
   .hero { padding: 6.5rem 1.25rem 2.5rem; }
-  .part { padding: 4rem 1.25rem; }
+  .part { padding: calc(58px + .75rem) 1.25rem .75rem; }
   .anim-controls-bar { flex-direction: column; }
   .playback-bar { flex-wrap: wrap; }
   .step-bar { flex-wrap: wrap; }
@@ -1178,3 +1169,130 @@ sub, sup { font-size: 0.8rem; }   /* min 12.8px */
 .hero-sub         { animation-delay: .36s; }
 .hero-cta         { animation-delay: .5s; }
 .hero-bottom-rule { animation-delay: .62s; }
+
+/* ════════════════════════════════════════
+   TWO-COLUMN BODY: explain + interact
+════════════════════════════════════════ */
+.part-body {
+  flex: 1;
+  display: grid;
+  grid-template-columns: 45fr 55fr;
+  gap: 2rem;
+  min-height: 0;
+}
+
+.part-explain,
+.part-interact {
+  overflow-y: auto;
+  min-height: 0;
+  padding-right: 4px;
+  padding-bottom: .5rem;
+}
+
+/* thin scrollbar in columns */
+.part-explain::-webkit-scrollbar,
+.part-interact::-webkit-scrollbar { width: 4px; }
+.part-explain::-webkit-scrollbar-track,
+.part-interact::-webkit-scrollbar-track { background: transparent; }
+.part-explain::-webkit-scrollbar-thumb,
+.part-interact::-webkit-scrollbar-thumb {
+  background: var(--border-med);
+  border-radius: 4px;
+}
+.part-dark .part-explain::-webkit-scrollbar-thumb,
+.part-dark .part-interact::-webkit-scrollbar-thumb {
+  background: var(--dk-border);
+}
+
+/* divider between columns */
+.part-interact {
+  padding-left: 1.5rem;
+  border-left: 1px solid var(--border-soft);
+}
+.part-dark .part-interact {
+  border-left-color: var(--dk-border);
+}
+
+/* ── Noise overlay removed (decorative only) ── */
+.noise { display: none; }
+
+/* ── Pipeline steps stack vertically in explain col ── */
+.part-explain .pipeline-steps {
+  flex-direction: column;
+  gap: .6rem;
+  margin-bottom: 1rem;
+}
+.part-explain .pipeline-arrow { display: none; }
+
+/* ── eq-legend 2-col in narrow explain pane ── */
+.part-explain .eq-legend {
+  grid-template-columns: 1fr 1fr;
+}
+
+/* ── Param cards stack vertically in explain col ── */
+.part-explain .param-cards {
+  grid-template-columns: 1fr;
+  gap: .875rem;
+  margin-bottom: 1rem;
+}
+.param-card { padding: 1.25rem 1.5rem; }
+
+/* ── Callout box tighter ── */
+.callout-box { font-size: 1rem; line-height: 1.8; }
+
+/* ── Filter workspace: draw | output only (pills moved above) ── */
+.draw-output-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+  margin-bottom: .75rem;
+}
+
+/* ── Pills horizontal row (in interact col) ── */
+.filter-pills-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .4rem;
+  margin-bottom: .75rem;
+}
+.filter-pills-row .pill {
+  padding: .4rem .85rem;
+  font-size: 0.8rem;
+}
+
+/* ── Compact controls bar ── */
+.anim-controls-bar {
+  padding: .875rem 1.25rem;
+  gap: .5rem 1.25rem;
+  margin-bottom: .875rem;
+}
+
+/* ── Part-sub-intro in interact col ── */
+.part-interact .part-sub-intro {
+  margin-bottom: .875rem;
+  max-width: 100%;
+}
+
+/* ── General eq-block tighter ── */
+.general-eq-block { margin-bottom: 1.25rem; }
+
+/* update responsive to allow two-col on mid screens */
+@media (max-width: 900px) {
+  .part {
+    height: auto;
+    min-height: 100vh;
+    overflow: visible;
+  }
+  .part-body {
+    grid-template-columns: 1fr;
+  }
+  .part-interact {
+    padding-left: 0;
+    border-left: none;
+    border-top: 1px solid var(--border-soft);
+    padding-top: 1.5rem;
+  }
+  .part-dark .part-interact {
+    border-top-color: var(--dk-border);
+  }
+}
