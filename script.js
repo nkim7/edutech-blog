@@ -375,21 +375,21 @@ const FILTERS = {
     label: 'Laplacian',
     k: [0,1,0,1,-4,1,0,1,0], kl: 'Laplacian (3×3)',
     desc: 'Second-order isotropic derivative ∇²I = ∂²I/∂x² + ∂²I/∂y². Responds to curvature of the intensity surface. Zero-crossings locate edge centres precisely. Highly noise-sensitive — combine with Gaussian first (LoG filter).',
-    eq: '∇²I = ∂²I/∂x² + ∂²I/∂y²\n     = I ★ [0 1 0 / 1 -4 1 / 0 1 0]',
+    eq: '∇²I = ∂²I/∂x² + ∂²I/∂y²\n\n        = I ★  | 0   1   0 |\n               | 1  -4   1 |\n               | 0   1   0 |',
     exPatch: [[50,50,50],[50,220,50],[50,50,50]]
   },
   sharpen: {
     label: 'Sharpen',
     k: [0,-1,0,-1,5,-1,0,-1,0], kl: 'Unsharp mask (3×3)',
     desc: 'Identity minus a scaled Laplacian: I − α∇²I with α=1. Amplifies high-frequency detail by subtracting a smoothed version from the original, making edges appear crisper. The centre weight (5) preserves the original; the −1 weights subtract the mean of neighbours.',
-    eq: 'S = I − α∇²I  (α = 1)\n  = I ★ [0 -1 0 / -1 5 -1 / 0 -1 0]',
+    eq: 'S = I − α∇²I  (α = 1)\n\n  = I ★  |  0  -1   0 |\n         | -1   5  -1 |\n         |  0  -1   0 |',
     exPatch: [[100,100,100],[100,160,100],[100,100,100]]
   },
   blur: {
     label: 'Gaussian blur',
     k: [1,2,1,2,4,2,1,2,1], div: 16, kl: 'Gaussian ≈ 3×3',
     desc: 'Weighted neighbourhood average approximating a 2D Gaussian distribution. All weights positive, sum to 1 — output stays in range. Centre contributes most, diagonals least. Separable: apply as two 1D passes (horizontal then vertical) for O(k) not O(k²) per pixel.',
-    eq: 'G_σ(x,y) = (1/2πσ²)·exp(−(x²+y²)/2σ²)\n[1 2 1 / 2 4 2 / 1 2 1] / 16  ≈  G_{0.85}',
+    eq: 'G_σ(x,y) = (1/2πσ²)·exp(−(x²+y²)/2σ²)\n\n≈  G_{0.85}  =  | 1  2  1 |\n                | 2  4  2 |  ÷ 16\n                | 1  2  1 |',
     exPatch: [[20,200,20],[200,200,200],[20,200,20]]
   },
   emboss: {

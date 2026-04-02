@@ -50,7 +50,7 @@
    RESET & BASE
 ════════════════════════════════════════ */
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-html { scroll-behavior: smooth; font-size: 16px; }
+html { scroll-behavior: smooth; font-size: 17px; }
 body {
   background: var(--bg);
   color: var(--ink);
@@ -555,7 +555,7 @@ sub, sup { font-size: 0.8em; }
 ════════════════════════════════════════ */
 .filter-workspace {
   display: grid;
-  grid-template-columns: 1fr auto 1fr;
+  grid-template-columns: 1fr 1fr;
   gap: 1.5rem; align-items: start; margin-bottom: 2rem;
   max-width: var(--max-w);
 }
@@ -571,11 +571,11 @@ sub, sup { font-size: 0.8em; }
   border: 1px solid var(--border-med);
   border-radius: var(--rad-sm);
 }
-.filter-pills-col {
-  display: flex; flex-direction: column;
-  justify-content: center; padding-top: 1.5rem;
+.filter-pills-row {
+  margin-bottom: 1rem;
+  max-width: var(--max-w);
 }
-.filter-pills { display: flex; flex-direction: column; gap: .4rem; }
+.filter-pills { display: flex; flex-direction: row; flex-wrap: wrap; gap: .4rem; }
 .pill {
   font-family: var(--sans); font-size: 0.8rem; font-weight: 500;
   height: 34px; padding: 0 1rem;
@@ -607,6 +607,7 @@ sub, sup { font-size: 0.8em; }
 .filter-eq {
   font-family: var(--mono);
   font-size: 0.95rem;
+  font-weight: 700;
   color: var(--ink); background: var(--bg3);
   padding: .875rem 1.1rem; margin-top: .4rem;
   border-left: 3px solid var(--accent);
