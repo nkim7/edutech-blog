@@ -456,11 +456,13 @@ function renderCalcExample(id, f) {
   const div = f.div || 1;
   const isEmboss = id === 'emboss';
 
+  const CELL = 42, CELL_H = 36;
+
   const mkGrid = (vals, isKernel) => {
     const mx2 = isKernel ? Math.max(...k.map(Math.abs)) : 0;
     const g = document.createElement('div');
-    g.style.cssText = `display:inline-grid;grid-template-columns:repeat(3,28px);gap:2px`;
-    vals.forEach((v, i) => {
+    g.style.cssText = `display:inline-grid;grid-template-columns:repeat(3,${CELL}px);gap:3px;flex-shrink:0`;
+    vals.forEach((v) => {
       const d = document.createElement('div');
       let bg, col;
       if (isKernel) {
@@ -468,9 +470,9 @@ function renderCalcExample(id, f) {
         bg = c2.bg; col = c2.col;
       } else {
         const lum = Math.round(v / 255 * 100);
-        bg = `hsl(0,0%,${lum}%)`; col = v > 128 ? '#222' : '#ddd';
+        bg = `hsl(0,0%,${lum}%)`; col = v > 128 ? '#222' : '#eee';
       }
-      d.style.cssText = `width:28px;height:24px;display:flex;align-items:center;justify-content:center;font-family:'DM Mono',monospace;font-size:9px;font-weight:500;border-radius:2px;background:${bg};color:${col}`;
+      d.style.cssText = `width:${CELL}px;height:${CELL_H}px;display:flex;align-items:center;justify-content:center;font-family:Merriweather,Georgia,serif;font-size:12px;font-weight:700;border-radius:3px;background:${bg};color:${col}`;
       d.textContent = Number.isInteger(v) ? v : v.toFixed(2);
       g.appendChild(d);
     });
@@ -482,16 +484,22 @@ function renderCalcExample(id, f) {
   flat.forEach((v, i) => sum += v * k[i]);
   const out = Math.round(Math.min(255, Math.max(0, sum / div + (isEmboss ? 128 : 128))));
 
-  el.appendChild(mkGrid(flat, false));
+  // Top row: input patch ★ kernel
+  const row = document.createElement('div');
+  row.style.cssText = 'display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px';
+  row.appendChild(mkGrid(flat, false));
   const star = document.createElement('span');
-  star.style.cssText = 'font-size:1.1rem;color:var(--muted-dark);padding:0 4px';
+  star.style.cssText = 'font-size:1.4rem;color:var(--gold);flex-shrink:0;font-weight:700';
   star.textContent = '★';
-  el.appendChild(star);
-  el.appendChild(mkGrid(k, true));
+  row.appendChild(star);
+  row.appendChild(mkGrid(k, true));
+  el.appendChild(row);
+
+  // Bottom: full equation
   const eq = document.createElement('div');
   const shownTerms = flat.map((v,i) => k[i] !== 0 ? `${v}×${Number.isInteger(k[i]) ? k[i] : k[i].toFixed(2)}` : null).filter(Boolean);
-  eq.style.cssText = `font-family:'DM Mono',monospace;font-size:10px;color:var(--muted-dark);line-height:1.7;flex:1;min-width:100px`;
-  eq.textContent = '= ' + shownTerms.slice(0,6).join(' + ') + (shownTerms.length > 6 ? ' + …' : '') + '\n= ' + Math.round(sum/div) + (isEmboss ? ' + 128 = ' + out : ' → ' + out);
+  eq.style.cssText = `font-family:Merriweather,Georgia,serif;font-size:13px;line-height:1.85;color:var(--dk-muted);background:var(--dk-bg3);padding:10px 14px;border-radius:5px;border-left:3px solid var(--gold);white-space:pre-wrap`;
+  eq.textContent = '= ' + shownTerms.slice(0,6).join(' + ') + (shownTerms.length > 6 ? '\n  + …' : '') + '\n= ' + Math.round(sum/div) + (isEmboss ? ' + 128 = ' + out : '   →   output: ' + out);
   el.appendChild(eq);
 }
 
@@ -578,7 +586,7 @@ let curSrc = 'sample', camStream = null, camRunning = false, rafId = null;
 let curP2Step = 'all', curP3Step = 'all';
 
 // Image placeholder — replace with actual base64 or URL when deploying
-const IMG_SRC = '__LIZARD_PLACEHOLDER__';
+const IMG_SRC = './lizard.jpg';
 
 function loadImgToAll(src) {
   const img = new Image();
@@ -645,7 +653,7 @@ function syncAll() {
 }
 
 const SAMPLES = [
-  { label: 'Image', fn: () => loadImgToAll(IMG_SRC) },
+  { label: 'Lizard', fn: () => loadImgToAll(IMG_SRC) },
   { label: 'Portrait', fn: drawFace },
   { label: 'Textures', fn: drawTexture },
   { label: 'Architecture', fn: drawArch },
@@ -935,4 +943,4 @@ buildStepBars();
 setP2Step('all');
 setP3Step('all');
 rebuildAnim();
-SAMPLES[1].fn(); // Start with drawn face so there's immediate content
+SAMPLES[0].fn(); // Start with lizard image as default
