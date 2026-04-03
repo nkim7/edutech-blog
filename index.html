@@ -279,127 +279,83 @@
     </div>
   </div>
 
-  <!-- ── Pipeline stepper ── -->
-  <div class="pipe-stepper" id="pipeStepper">
-    <div class="pipe-canvases">
-      <div class="pipe-canvas-wrap">
-        <div class="canvas-label-row"><span class="canvas-label">Original</span></div>
+  <div class="src-cards" id="srcTabs">
+    <button class="src-card on" data-src="sample" onclick="setSrc('sample')">
+      <span class="src-card-icon">🖼</span>
+      <span class="src-card-title">Sample</span>
+    </button>
+    <button class="src-card" data-src="upload" onclick="setSrc('upload')">
+      <span class="src-card-icon">⬆️</span>
+      <span class="src-card-title">Upload</span>
+    </button>
+    <button class="src-card" data-src="cam" onclick="setSrc('cam')">
+      <span class="src-card-icon">📷</span>
+      <span class="src-card-title">Webcam</span>
+    </button>
+  </div>
+
+  <div id="src-sample"><div class="pills" id="spills"></div></div>
+  <div id="src-upload" style="display:none">
+    <div class="upload-zone" onclick="document.getElementById('fin').click()">
+      <div class="upload-title">+ Click to upload</div>
+      <input type="file" id="fin" accept="image/*" style="display:none" onchange="loadFile(this)">
+    </div>
+  </div>
+  <div id="src-cam" style="display:none">
+    <video id="vid" autoplay muted playsinline style="display:none"></video>
+  </div>
+
+  <div class="step-bar" id="sharedStepBar"></div>
+
+  <div class="canny-section">
+    <div class="canny-canvases">
+      <div class="canny-canvas-col">
+        <div class="canvas-label-row">
+          <span class="canvas-label">Original</span>
+          <span class="cam-live-badge" id="camLiveBadge" style="display:none">&#9679; Live — click Webcam to freeze</span>
+        </div>
         <canvas id="cin" width="340" height="255"></canvas>
       </div>
-      <div class="pipe-canvas-wrap">
-        <div class="canvas-label-row"><span class="canvas-label" id="pipeOutLabel">Stage output</span></div>
+      <div class="canny-canvas-col">
+        <div class="canvas-label-row"><span class="canvas-label" id="p2-outlabel">Stage Output</span></div>
         <canvas id="cout" width="340" height="255"></canvas>
       </div>
     </div>
-    <div class="pipe-stage-note" id="pipeStageNote"></div>
-    <div class="pipe-nav">
-      <button class="pipe-nav-btn" id="pipePrevBtn" onclick="pipeStepNav(-1)" disabled>← Prev</button>
-      <div class="pipe-dots" id="pipeDots"></div>
-      <button class="pipe-nav-btn" id="pipeNextBtn" onclick="pipeStepNav(1)">Next →</button>
-    </div>
   </div>
 
-  <!-- ── CTA to popup ── -->
-  <div class="pipe-cta-wrap">
+  <div id="tuning-cta-wrap" style="text-align:center; margin-top:2rem;">
     <button class="pipe-cta-btn" onclick="openTuningPopup()">Try Hyperparameter Tuning →</button>
   </div>
 
-  <!-- ── Tuning playground (unlocked after quiz) ── -->
-  <div class="tuning-playground" id="tuningPlayground" style="display:none">
-    <div class="playground-topbar">
-      <div class="playground-label">Hyperparameter Playground</div>
-      <button class="help-btn" onclick="openHelpPopup()">? Help</button>
+  <div id="tuning-controls-unlocked" style="display:none;">
+    <div class="tuning-unlocked-header">
+      <span class="playground-label">Hyperparameters</span>
+      <button class="help-btn" onclick="openHelpPopup()">?</button>
     </div>
-
-    <div class="src-cards" id="srcTabs">
-      <button class="src-card on" data-src="sample" onclick="setSrc('sample')">
-        <span class="src-card-icon">🖼</span>
-        <span class="src-card-title">Sample images</span>
-        <span class="src-card-sub">Choose a preset scene</span>
-      </button>
-      <button class="src-card" data-src="upload" onclick="setSrc('upload')">
-        <span class="src-card-icon">⬆️</span>
-        <span class="src-card-title">Upload your own</span>
-        <span class="src-card-sub">Try any photo from your device</span>
-      </button>
-      <button class="src-card" data-src="cam" onclick="setSrc('cam')">
-        <span class="src-card-icon">📷</span>
-        <span class="src-card-title">Live webcam</span>
-        <span class="src-card-sub">See Canny detect edges in real time</span>
-      </button>
-    </div>
-    <div id="src-sample">
-      <div class="pills" id="spills"></div>
-    </div>
-    <div id="src-upload" style="display:none">
-      <div class="upload-zone" onclick="document.getElementById('fin').click()">
-        <div class="upload-icon">+</div>
-        <div class="upload-title">Click to upload your image</div>
-        <div class="upload-sub">Any photo works — see how Canny responds to edges in <em>your</em> images.</div>
-        <input type="file" id="fin" accept="image/*" style="display:none" onchange="loadFile(this)">
-      </div>
-    </div>
-    <div id="src-cam" style="display:none">
-      <div class="cam-panel">
-        <div class="cam-intro">
-          <p class="cam-intro-text">Point your camera at anything. Canny will detect edges live as you move.</p>
-        </div>
-        <div class="cam-controls-row">
-          <button class="cam-btn-large" id="cbtn" onclick="toggleCam()">
-            <span class="cam-btn-icon">▶</span> Start camera
-          </button>
-          <span class="cam-status" id="cstat"></span>
+    <div class="tuning-controls">
+      <div class="tuning-ctrl-group">
+        <div class="tuning-param-name">σ — blur radius <span class="tuning-value-badge" id="p3sv">1.4</span></div>
+        <div class="tuning-slider-row">
+          <input type="range" id="p3sigma" min="0.5" max="4" value="1.4" step="0.1" oninput="p3update()" class="tuning-range">
         </div>
       </div>
-      <video id="vid" autoplay muted playsinline style="display:none;width:0;height:0"></video>
-    </div>
-
-    <!-- 2-column: canvases LEFT, sliders RIGHT -->
-    <div class="playground-layout">
-      <div class="playground-canvases">
-        <div class="playground-canvas-wrap">
-          <div class="canvas-label-row"><span class="canvas-label">Original</span></div>
-          <canvas id="tunIn" width="300" height="225"></canvas>
-        </div>
-        <div class="playground-canvas-wrap">
-          <div class="canvas-label-row"><span class="canvas-label" id="tunOutLabel">Canny result</span></div>
-          <canvas id="tunOut" width="300" height="225"></canvas>
+      <div class="tuning-ctrl-group">
+        <div class="tuning-param-name">T<sub>hi</sub> — strong edge <span class="tuning-value-badge" id="p3thv">30%</span></div>
+        <div class="tuning-slider-row">
+          <input type="range" id="p3thi" min="5" max="80" value="30" step="1" oninput="p3update()" class="tuning-range">
         </div>
       </div>
-      <div class="playground-controls">
-        <div class="tuning-ctrl-group">
-          <div class="tuning-param-name">σ — blur radius <span class="tuning-value-badge" id="p3sv">1</span></div>
-          <div class="tuning-slider-row">
-            <span class="tuning-range-label">0</span>
-            <input type="range" id="p3sigma" min="0" max="6" value="1" step="1" oninput="p3update()" class="tuning-range">
-            <span class="tuning-range-label">6</span>
-          </div>
-        </div>
-        <div class="tuning-ctrl-group">
-          <div class="tuning-param-name">T<sub>hi</sub> — strong edge % <span class="tuning-value-badge" id="p3thv">30%</span></div>
-          <div class="tuning-slider-row">
-            <span class="tuning-range-label">5%</span>
-            <input type="range" id="p3thi" min="5" max="90" value="30" step="1" oninput="p3update()" class="tuning-range">
-            <span class="tuning-range-label">90%</span>
-          </div>
-        </div>
-        <div class="tuning-ctrl-group">
-          <div class="tuning-param-name">T<sub>lo</sub> ratio <span class="tuning-value-badge" id="p3tlv">33%</span></div>
-          <div class="tuning-slider-row">
-            <span class="tuning-range-label">10%</span>
-            <input type="range" id="p3tlo" min="10" max="90" value="33" step="1" oninput="p3update()" class="tuning-range">
-            <span class="tuning-range-label">90%</span>
-          </div>
+      <div class="tuning-ctrl-group">
+        <div class="tuning-param-name">T<sub>lo</sub> ratio <span class="tuning-value-badge" id="p3tlv">33%</span></div>
+        <div class="tuning-slider-row">
+          <input type="range" id="p3tlo" min="10" max="90" value="33" step="1" oninput="p3update()" class="tuning-range">
         </div>
       </div>
     </div>
   </div>
 
-  <!-- Hidden processing canvases -->
-  <canvas id="p3in"  width="340" height="255" aria-hidden="true" style="display:none;position:absolute;left:-9999px"></canvas>
-  <canvas id="p3out" width="340" height="255" aria-hidden="true" style="display:none;position:absolute;left:-9999px"></canvas>
-</section>
-
+  <canvas id="p3in" width="340" height="255" style="display:none"></canvas>
+  <canvas id="p3out" width="340" height="255" style="display:none"></canvas>
 </section>
 
 <!-- FOOTER -->
@@ -416,7 +372,7 @@
 <script src="script.js"></script>
 
 <!-- ═══════════════════════════════════════════════════ TUNING POPUP -->
-<div id="tuningPopup" class="popup-overlay" style="display:none" onclick="popupOverlayClick(event)">
+<div id="tuningPopup" class="popup-overlay" style="display:none">
   <div class="popup-modal" role="dialog" aria-modal="true">
     <button class="popup-close-btn" onclick="closeTuningPopup()" aria-label="Close">&#10005;</button>
 
@@ -466,68 +422,53 @@
 
     <!-- PAGE 2: QUIZ -->
     <div id="popupPage2" class="popup-page" style="display:none">
-      <div class="popup-pg-header">
-        <button class="popup-back-link" onclick="showPopupPage(1)">&#8592; Review parameters</button>
-        <div>
-          <h2 class="popup-pg-title">Find the <em>right combination</em></h2>
-          <p class="popup-pg-sub">Adjust all three parameters until your result matches the target.</p>
-        </div>
+      <div class="quiz-topbar">
+        <button class="popup-back-link" onclick="showPopupPage(1)">&#8592; Back</button>
+        <div class="quiz-topbar-title">Find the <em>right combination</em> <span class="quiz-topbar-sub">— adjust until your result matches the target</span></div>
       </div>
 
-      <div class="quiz-layout">
-        <!-- Left: result canvas + match bar -->
-        <div class="quiz-left">
+      <div class="quiz-body">
+        <!-- Canvas centred, bigger -->
+        <div class="quiz-canvas-wrap">
           <div class="quiz-canvas-label">Your result</div>
           <canvas id="quizOut" width="280" height="210" class="quiz-canvas"></canvas>
-          <div class="quiz-match-wrap">
-            <div class="quiz-match-track">
-              <div class="quiz-match-fill" id="quizMatchFill" style="width:0%"></div>
-            </div>
-            <div class="quiz-match-label" id="quizMatchLabel">Adjust the sliders to begin</div>
-          </div>
         </div>
-        <!-- Right: target + sliders -->
-        <div class="quiz-right">
-          <div class="quiz-target-block">
-            <div class="quiz-canvas-label">Target</div>
-            <canvas id="quizTarget" width="110" height="83" class="quiz-canvas"></canvas>
+        <!-- Score bar -->
+        <div class="quiz-match-wrap">
+          <div class="quiz-match-track">
+            <div class="quiz-match-fill" id="quizMatchFill" style="width:0%"></div>
           </div>
-          <div class="quiz-sliders">
-            <div class="tuning-ctrl-group">
-              <div class="tuning-param-name">&#963; <span class="tuning-value-badge" id="quizSigmaBadge">4</span></div>
-              <div class="tuning-slider-row">
-                <span class="tuning-range-label">0</span>
-                <input type="range" id="quizSigma" min="0" max="6" value="4" step="1" oninput="quizUpdate()" class="tuning-range">
-                <span class="tuning-range-label">6</span>
-              </div>
+          <div class="quiz-match-label" id="quizMatchLabel">Adjust the sliders to begin</div>
+        </div>
+        <!-- 3 sliders side-by-side in one row -->
+        <div class="quiz-sliders">
+          <div class="tuning-ctrl-group">
+            <div class="tuning-param-name">&#963; — blur <span class="tuning-value-badge" id="quizSigmaBadge">4</span></div>
+            <div class="tuning-slider-row">
+              <span class="tuning-range-label">0</span>
+              <input type="range" id="quizSigma" min="0" max="6" value="4" step="1" oninput="quizUpdate()" class="tuning-range">
+              <span class="tuning-range-label">6</span>
             </div>
-            <div class="tuning-ctrl-group">
-              <div class="tuning-param-name">T<sub>hi</sub> <span class="tuning-value-badge" id="quizThiBadge">60%</span></div>
-              <div class="tuning-slider-row">
-                <span class="tuning-range-label">5%</span>
-                <input type="range" id="quizThi" min="5" max="90" value="60" step="1" oninput="quizUpdate()" class="tuning-range">
-                <span class="tuning-range-label">90%</span>
-              </div>
+          </div>
+          <div class="tuning-ctrl-group">
+            <div class="tuning-param-name">T<sub>hi</sub> — strong edge <span class="tuning-value-badge" id="quizThiBadge">60%</span></div>
+            <div class="tuning-slider-row">
+              <span class="tuning-range-label">5%</span>
+              <input type="range" id="quizThi" min="5" max="90" value="60" step="1" oninput="quizUpdate()" class="tuning-range">
+              <span class="tuning-range-label">90%</span>
             </div>
-            <div class="tuning-ctrl-group">
-              <div class="tuning-param-name">T<sub>lo</sub> ratio <span class="tuning-value-badge" id="quizTloBadge">20%</span></div>
-              <div class="tuning-slider-row">
-                <span class="tuning-range-label">10%</span>
-                <input type="range" id="quizTlo" min="10" max="90" value="20" step="1" oninput="quizUpdate()" class="tuning-range">
-                <span class="tuning-range-label">90%</span>
-              </div>
+          </div>
+          <div class="tuning-ctrl-group">
+            <div class="tuning-param-name">T<sub>lo</sub> ratio <span class="tuning-value-badge" id="quizTloBadge">20%</span></div>
+            <div class="tuning-slider-row">
+              <span class="tuning-range-label">10%</span>
+              <input type="range" id="quizTlo" min="10" max="90" value="20" step="1" oninput="quizUpdate()" class="tuning-range">
+              <span class="tuning-range-label">90%</span>
             </div>
           </div>
         </div>
       </div>
 
-      <!-- Success state (hidden until quiz passes) -->
-      <div id="quizSuccess" class="quiz-success-block" style="display:none">
-        <div class="quiz-success-icon">&#10003;</div>
-        <div class="quiz-success-title">You found the optimal parameters!</div>
-        <p class="quiz-success-text">Each image may need different values — the lizard's fine scales call for gentle blur, while a bold architectural photo can handle more aggressive settings.</p>
-        <button class="popup-primary-btn" onclick="enterTuning()">Try with more images &#8594;</button>
-      </div>
     </div><!-- /page2 -->
   </div><!-- /popup-modal -->
 </div><!-- /tuningPopup -->
@@ -571,6 +512,19 @@
     </div>
   </div>
 </div><!-- /helpPopup -->
+
+<!-- ═══════════════════════════════════════════════════ SUCCESS POPUP -->
+<div id="successPopup" class="popup-overlay" style="display:none">
+  <div class="popup-modal popup-modal--sm success-popup" role="dialog" aria-modal="true">
+    <button class="popup-close-btn" onclick="closeSuccessPopup()" aria-label="Close">&#10005;</button>
+    <div class="success-popup-icon">&#10003;</div>
+    <h2 class="success-popup-title">You found the optimal parameters!</h2>
+    <p class="success-popup-text">Each image may need different values — the lizard's fine scales call for gentle blur, while a bold architectural photo can handle more aggressive settings.</p>
+    <div class="popup-page-foot" style="justify-content:center; margin-top:1.5rem;">
+      <button class="popup-primary-btn" onclick="enterTuning()">Try with more images &#8594;</button>
+    </div>
+  </div>
+</div><!-- /successPopup -->
 
 </body>
 </html>

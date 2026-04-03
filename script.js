@@ -621,23 +621,74 @@ dc.addEventListener('touchmove', e=>{ e.preventDefault(); if(!drawing)return; co
 dc.addEventListener('touchend', () => drawing=false);
 
 /* ──────────────────────────────────────────
-   PARTS 2 + 3: CANNY PIPELINE + PLAYGROUND
+   PARTS 2 + 3: PIPELINE & TUNING
 ────────────────────────────────────────── */
 const cin = document.getElementById('cin'), cout = document.getElementById('cout');
 const cinctx = cin.getContext('2d'), coutctx = cout.getContext('2d');
 const p3inCv = document.getElementById('p3in'), p3outCv = document.getElementById('p3out');
 const p3inctx = p3inCv.getContext('2d'), p3outctx = p3outCv.getContext('2d');
-const tunIn = document.getElementById('tunIn'), tunOut = document.getElementById('tunOut');
-const tunInCtx = tunIn.getContext('2d'), tunOutCtx = tunOut.getContext('2d');
 
-let curSrc = 'sample', camStream = null, camRunning = false, rafId = null;
-let curSampleIdx = 0;
-let tuningUnlocked = false;
-let pipeStep = 0;
+let curSrc = 'sample', camStream = null, camRunning = false, rafId = null, wasWebcamRunning = false;
+let curSampleIdx = 0, tuningUnlocked = false, activeStep = 4;
 
-const IMG_SRC_IMG          = './lizard.jpg';
-const IMG_SRC_PORTRAIT     = './portrait.jpg';
-const IMG_SRC_ARCHITECTURE = './architecture.jpg';
+const STEP_LABELS = [
+  '1. Blur',
+  '2. Gradient',
+  '3. NMS',
+  '4. Threshold',
+  'Full Canny'
+];
+
+const STEP_DESCS = [
+  'Gaussian blur reduces noise and small details. High σ = smoother edges.',
+  'Sobel filters detect intensity changes. Shows raw edge strength.',
+  'Non-Maximum Suppression thins edges to 1-pixel width.',
+  'Double thresholding identifies strong (white) and weak (blue) edges.'
+];
+
+function buildSharedStepBar() {
+  const bar = document.getElementById('sharedStepBar');
+  bar.innerHTML = '';
+  STEP_LABELS.forEach((label, i) => {
+    const btn = document.createElement('button');
+    btn.className = 'step-pill' + (i === activeStep ? ' on' : '');
+    btn.textContent = label;
+    btn.onclick = () => {
+      activeStep = i;
+      document.querySelectorAll('.step-pill').forEach((b, idx) => b.classList.toggle('on', idx === i));
+      document.getElementById('p2-note').textContent = STEP_DESCS[i];
+      p3update();
+    };
+    bar.appendChild(btn);
+  });
+}
+
+function p3update() {
+  const sigma = tuningUnlocked ? +document.getElementById('p3sigma').value : 1.4;
+  const thi = (tuningUnlocked ? +document.getElementById('p3thi').value : 30) / 100;
+  const tloR = (tuningUnlocked ? +document.getElementById('p3tlo').value : 33) / 100;
+
+  if (tuningUnlocked) {
+    document.getElementById('p3sv').textContent = sigma.toFixed(1);
+    document.getElementById('p3thv').textContent = Math.round(thi*100) + '%';
+    document.getElementById('p3tlv').textContent = Math.round(tloR*100) + '%';
+  }
+
+  const w = cin.width, h = cin.height;
+  const g = getGray(cinctx.getImageData(0,0,w,h), w, h);
+  const b = gaussBlur(g, w, h, sigma);
+  if (activeStep === 0) { putGrayF(coutctx, b, w, h); return; }
+
+  const { mag, dir, maxMag } = computeSobel(b, w, h);
+  if (activeStep === 1) { putGrayF(coutctx, mag, w, h, maxMag); return; }
+
+  const nms = applyNMS(mag, dir, w, h);
+  if (activeStep === 2) { putGrayF(coutctx, nms, w, h, maxMag); return; }
+  if (activeStep === 3) { putThr(coutctx, nms, w, h, maxMag, thi, tloR); return; }
+
+  const final = runHysteresis(nms, w, h, maxMag, thi, tloR);
+  putBin(coutctx, final, w, h);
+}
 
 function loadImgToAll(src) {
   const img = new Image();
@@ -645,25 +696,17 @@ function loadImgToAll(src) {
   img.onload = () => {
     cinctx.drawImage(img, 0, 0, cin.width, cin.height);
     p3inctx.drawImage(img, 0, 0, p3inCv.width, p3inCv.height);
-    tunInCtx.drawImage(img, 0, 0, tunIn.width, tunIn.height);
-    syncAll();
+    if (curSrc === 'sample' && curSampleIdx === 0) computeGoldStandard();
+    else goldStandard = null;
+    p3update();
   };
   img.src = src;
 }
 
-function syncAll() {
-  p3inctx.drawImage(cin, 0, 0, p3inCv.width, p3inCv.height);
-  tunInCtx.drawImage(cin, 0, 0, tunIn.width, tunIn.height);
-  if (curSrc === 'sample' && curSampleIdx === 0) computeGoldStandard();
-  else goldStandard = null;
-  runPipeStep();
-  if (tuningUnlocked) p3update();
-}
-
 const SAMPLES = [
-  { label: 'Lizard',       fn: () => loadImgToAll(IMG_SRC_IMG) },
-  { label: 'Portrait',     fn: () => loadImgToAll(IMG_SRC_PORTRAIT) },
-  { label: 'Architecture', fn: () => loadImgToAll(IMG_SRC_ARCHITECTURE) },
+  { label: 'Lizard',       fn: () => loadImgToAll('./lizard.jpg') },
+  { label: 'Portrait',     fn: () => loadImgToAll('./portrait.jpg') },
+  { label: 'Architecture', fn: () => loadImgToAll('./architecture.jpg') },
 ];
 
 function buildSamplePills() {
@@ -684,68 +727,282 @@ function buildSamplePills() {
   });
 }
 
-/* ── Pipeline stepper ── */
-const PIPE_STEPS = [
-  { id: 'original',   label: 'The original image',
-    desc: 'The source image loaded as-is. This is what the Canny algorithm starts with.' },
-  { id: 'blur',       label: 'Gaussian Blur (σ=1.4)',
-    desc: 'Image has been reduced to grayscale, and a 5×5 Gaussian filter with σ=1.4 has been applied.' },
-  { id: 'gradient',   label: 'Sobel Gradient',
-    desc: 'The intensity gradient of the previous image. The edges of the image have been handled by replicating.' },
-  { id: 'nms',        label: 'Non-Maximum Suppression',
-    desc: 'Non-maximum suppression applied to the previous image.' },
-  { id: 'threshold',  label: 'Double Thresholding',
-    desc: 'Double thresholding applied to the previous image. Weak pixels are those with a gradient value between 0.1 and 0.3. Strong pixels have a gradient value greater than 0.3.' },
-  { id: 'hysteresis', label: 'Hysteresis (Full Canny)',
-    desc: 'Hysteresis applied to the previous image. Strong edges survive; weak edges survive only if connected to a strong neighbour.' },
-];
+/* Quiz logic */
+let goldStandard = null;
+const QUIZ_GOLD  = { sigma: 1, thi: 0.28, tloR: 0.38 };
+const QUIZ_START = { sigma: 4, thi: 60,   tlo: 20    };
 
-function buildPipeDots() {
-  const c = document.getElementById('pipeDots');
-  if (!c) return;
-  c.innerHTML = '';
-  PIPE_STEPS.forEach((s, i) => {
-    const d = document.createElement('button');
-    d.className = 'pipe-dot' + (i === 0 ? ' on' : '');
-    d.title = s.label;
-    d.onclick = () => { pipeStep = i; renderPipeStep(); };
-    c.appendChild(d);
-  });
-}
-
-function renderPipeStep() {
-  const step = PIPE_STEPS[pipeStep];
-  const labelEl = document.getElementById('pipeOutLabel');
-  const noteEl  = document.getElementById('pipeStageNote');
-  if (labelEl) labelEl.textContent = step.label;
-  if (noteEl)  noteEl.textContent  = step.desc;
-  document.querySelectorAll('.pipe-dot').forEach((d, i) =>
-    d.classList.toggle('on', i === pipeStep));
-  const prevBtn = document.getElementById('pipePrevBtn');
-  const nextBtn = document.getElementById('pipeNextBtn');
-  if (prevBtn) prevBtn.disabled = pipeStep === 0;
-  if (nextBtn) nextBtn.disabled = pipeStep === PIPE_STEPS.length - 1;
-  runPipeStep();
-}
-
-function runPipeStep() {
-  const w = cin.width, h = cin.height;
-  const sigma = 1.4, thi = 0.30, tloR = 0.10 / 0.30;
-  if (pipeStep === 0) { coutctx.drawImage(cin, 0, 0); return; }
-  const g = getGray(cinctx.getImageData(0, 0, w, h), w, h);
-  const b = gaussBlur(g, w, h, sigma);
-  if (pipeStep === 1) { putGrayF(coutctx, b, w, h, 255); return; }
+function computeGoldStandard() {
+  const w = p3inCv.width, h = p3inCv.height;
+  const g = getGray(p3inctx.getImageData(0,0,w,h), w, h);
+  const b = gaussBlur(g, w, h, QUIZ_GOLD.sigma);
   const { mag, dir, maxMag } = computeSobel(b, w, h);
-  if (pipeStep === 2) { putGrayF(coutctx, mag, w, h, maxMag); return; }
   const nms = applyNMS(mag, dir, w, h);
-  if (pipeStep === 3) { putGrayF(coutctx, nms, w, h, maxMag); return; }
-  if (pipeStep === 4) { putThr(coutctx, nms, w, h, maxMag, thi, tloR); return; }
-  putBin(coutctx, runHysteresis(nms, w, h, maxMag, thi, tloR), w, h);
+  goldStandard = runHysteresis(nms, w, h, maxMag, QUIZ_GOLD.thi, QUIZ_GOLD.tloR);
 }
 
-function pipeStepNav(dir) {
-  pipeStep = Math.max(0, Math.min(PIPE_STEPS.length - 1, pipeStep + dir));
-  renderPipeStep();
+function computeQuizScore(userMask) {
+  if (!goldStandard || !userMask) return 0;
+  let inter = 0, union = 0;
+  for (let i = 0; i < goldStandard.length; i++) {
+    const g = goldStandard[i] > 0 ? 1 : 0;
+    const u = userMask[i] > 0 ? 1 : 0;
+    if (g && u) inter++;
+    if (g || u) union++;
+  }
+  return union === 0 ? 0 : Math.round(inter / union * 100);
+}
+
+function quizUpdate() {
+  const sigma = +document.getElementById('quizSigma').value;
+  const thi   = +document.getElementById('quizThi').value / 100;
+  const tloR  = +document.getElementById('quizTlo').value / 100;
+  document.getElementById('quizSigmaBadge').textContent = sigma;
+  document.getElementById('quizThiBadge').textContent   = Math.round(thi  * 100) + '%';
+  document.getElementById('quizTloBadge').textContent   = Math.round(tloR * 100) + '%';
+  const w = p3inCv.width, h = p3inCv.height;
+  const g = getGray(p3inctx.getImageData(0,0,w,h), w, h);
+  const b = gaussBlur(g, w, h, sigma);
+  const { mag, dir, maxMag } = computeSobel(b, w, h);
+  const nms = applyNMS(mag, dir, w, h);
+  const result = runHysteresis(nms, w, h, maxMag, thi, tloR);
+  putBin(p3outctx, result, w, h);
+  const qOut = document.getElementById('quizOut');
+  if (qOut) qOut.getContext('2d').drawImage(p3outCv, 0, 0, qOut.width, qOut.height);
+  const score = computeQuizScore(result);
+  updateQuizMatchUI(score);
+  if (score >= 88) {
+    const sp = document.getElementById('successPopup');
+    if (sp && sp.style.display === 'none') showQuizPass();
+  }
+}
+
+function updateQuizMatchUI(score) {
+  const fill  = document.getElementById('quizMatchFill');
+  const label = document.getElementById('quizMatchLabel');
+  if (!fill || !label) return;
+  fill.style.width = score + '%';
+  if (score >= 88) {
+    fill.style.background = 'var(--accent)';
+    label.textContent = 'Perfect match!';
+    label.style.color = 'var(--accent)';
+  } else if (score >= 68) {
+    fill.style.background = '#3b82f6';
+    label.textContent = 'Very close — keep fine-tuning';
+    label.style.color = 'var(--ink)';
+  } else if (score >= 44) {
+    fill.style.background = '#93c5fd';
+    label.textContent = 'Getting closer...';
+    label.style.color = 'var(--muted2)';
+  } else {
+    fill.style.background = 'var(--border-med)';
+    label.textContent = 'Adjust the sliders to begin';
+    label.style.color = 'var(--muted)';
+  }
+}
+
+function renderQuizTarget() {
+  const tgt = document.getElementById('quizTarget');
+  if (!tgt || !goldStandard) return;
+  const w = p3inCv.width, h = p3inCv.height;
+  putBin(p3outctx, goldStandard, w, h);
+  tgt.getContext('2d').drawImage(p3outCv, 0, 0, tgt.width, tgt.height);
+}
+
+function initQuizPage() {
+  // Remember if webcam was running, stop it temporarily
+  wasWebcamRunning = camRunning;
+  if (camRunning) stopCam();
+  // Ensure success popup is hidden when quiz resets
+  const sp = document.getElementById('successPopup');
+  if (sp) sp.style.display = 'none';
+  // Load lizard, compute gold, then start quiz
+  const img = new Image();
+  img.onload = () => {
+    p3inctx.drawImage(img, 0, 0, p3inCv.width, p3inCv.height);
+    computeGoldStandard();
+    renderQuizTarget();
+    document.getElementById('quizSigma').value = QUIZ_START.sigma;
+    document.getElementById('quizThi').value   = QUIZ_START.thi;
+    document.getElementById('quizTlo').value   = QUIZ_START.tlo;
+    // Reset match bar
+    const fill  = document.getElementById('quizMatchFill');
+    const label = document.getElementById('quizMatchLabel');
+    if (fill)  { fill.style.width = '0%'; fill.style.background = 'var(--border-med)'; }
+    if (label) { label.textContent = 'Adjust the sliders to begin'; label.style.color = 'var(--muted)'; }
+    quizUpdate();
+  };
+  img.src = './lizard.jpg';
+}
+
+function enterTuning() {
+  // Close both popups — tuning IS activated via this path only
+  const sp = document.getElementById('successPopup');
+  if (sp) sp.style.display = 'none';
+  closeTuningPopup();
+  tuningUnlocked = true;
+  buildSamplePills();
+  const pg = document.getElementById('tuning-controls-unlocked');
+  if (pg) {
+    document.getElementById('tuning-cta-wrap').style.display = 'none';
+    pg.style.display = 'block';
+    setTimeout(() => {
+      pg.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }, 300);
+  }
+  p3update();
+}
+
+/* ── Help popup ── */
+function openHelpPopup() {
+  const hp = document.getElementById('helpPopup');
+  if (hp) hp.style.display = 'flex';
+}
+
+function closeHelpPopup() {
+  const hp = document.getElementById('helpPopup');
+  if (hp) hp.style.display = 'none';
+}
+
+function helpOverlayClick(e) {
+  if (e.target === document.getElementById('helpPopup')) closeHelpPopup();
+}
+
+function setSrc(s) {
+  // If already on webcam, clicking webcam card again freezes the frame
+  if (s === 'cam' && curSrc === 'cam') {
+    if (camRunning) stopCam();
+    else toggleCam(); // restart if already frozen
+    return;
+  }
+  curSrc = s;
+  ['sample','upload','cam'].forEach(id => {
+    const el = document.getElementById('src-'+id);
+    if (el) el.style.display = id === s ? '' : 'none';
+  });
+  document.querySelectorAll('.src-card').forEach(t => t.classList.toggle('on', t.dataset.src === s));
+  if (s !== 'cam' && camRunning) stopCam();
+  if (s === 'sample') SAMPLES[curSampleIdx].fn();
+  // Auto-start camera immediately when switching to webcam
+  if (s === 'cam') toggleCam();
+}
+
+function loadFile(input) {
+  const f = input.files[0]; if (!f) return;
+  const img = new Image();
+  img.onload = () => {
+    cinctx.drawImage(img, 0, 0, cin.width, cin.height);
+    p3inctx.drawImage(img, 0, 0, p3inCv.width, p3inCv.height);
+    p3update();
+    URL.revokeObjectURL(img.src);
+  };
+  img.src = URL.createObjectURL(f);
+}
+
+async function toggleCam() {
+  if (camRunning) { stopCam(); return; }
+  try {
+    camStream = await navigator.mediaDevices.getUserMedia({ video: { width: 340, height: 255 } });
+    const v = document.getElementById('vid');
+    v.srcObject = camStream;
+    v.style.display = 'none'; // keep video element hidden; feed appears on canvas only
+    v.onloadedmetadata = () => {
+      v.play();
+      camRunning = true;
+      const badge = document.getElementById('camLiveBadge');
+      if (badge) badge.style.display = '';
+      camLoop();
+    };
+  } catch(e) {
+    // Camera unavailable — show brief note on canvas label
+    const badge = document.getElementById('camLiveBadge');
+    if (badge) { badge.textContent = 'Camera unavailable'; badge.style.display = ''; }
+  }
+}
+
+function stopCam() {
+  // Draw the last video frame to both canvases BEFORE stopping stream
+  const v = document.getElementById('vid');
+  if (v && camRunning) {
+    try {
+      cinctx.drawImage(v, 0, 0, cin.width, cin.height);
+      p3inctx.drawImage(v, 0, 0, p3inCv.width, p3inCv.height);
+    } catch(e) { /* tainted canvas guard */ }
+  }
+  camRunning = false;
+  if (rafId) { cancelAnimationFrame(rafId); rafId = null; }
+  if (camStream) { camStream.getTracks().forEach(t => t.stop()); camStream = null; }
+  v.style.display = 'none';
+  const badge = document.getElementById('camLiveBadge');
+  if (badge) badge.style.display = 'none';
+  // Run pipeline on the frozen frame via next animation frame to let canvas settle
+  requestAnimationFrame(() => p3update());
+}
+
+function camLoop() {
+  if (!camRunning) return;
+  const v = document.getElementById('vid');
+  cinctx.drawImage(v, 0, 0, cin.width, cin.height);
+  p3inctx.drawImage(v, 0, 0, p3inCv.width, p3inCv.height);
+  p3update();
+  rafId = requestAnimationFrame(camLoop);
+}
+
+/* Popup logic */
+function openTuningPopup() {
+  const overlay = document.getElementById('tuningPopup');
+  if (!overlay) return;
+  overlay.style.display = 'flex';
+  showPopupPage(1);
+}
+
+function closeTuningPopup() {
+  document.getElementById('tuningPopup').style.display = 'none';
+  // Resume webcam if it was running before popup
+  if (wasWebcamRunning && !camRunning && curSrc === 'cam') {
+    toggleCam();
+    wasWebcamRunning = false;
+  }
+}
+
+function popupOverlayClick(e) {
+  // Tuning popup cannot be dismissed by clicking outside — only by completing the quiz
+}
+
+function showPopupPage(n) {
+  document.getElementById('popupPage1').style.display = n === 1 ? '' : 'none';
+  document.getElementById('popupPage2').style.display = n === 2 ? '' : 'none';
+  // Toggle quiz-active on modal to lock overflow when quiz is showing
+  const modal = document.querySelector('#tuningPopup .popup-modal');
+  if (modal) modal.classList.toggle('quiz-active', n === 2);
+  if (n === 2) initQuizPage();
+}
+
+function showQuizPass() {
+  // Show the success as a second popup on top of the quiz popup
+  const sp = document.getElementById('successPopup');
+  if (sp) sp.style.display = 'flex';
+}
+
+function closeSuccessPopup() {
+  // Close success popup WITHOUT activating tuning bars
+  const sp = document.getElementById('successPopup');
+  if (sp) sp.style.display = 'none';
+  closeTuningPopup(); // also close the quiz popup behind it
+}
+
+function openHelpPopup() {
+  const hp = document.getElementById('helpPopup');
+  if (hp) hp.style.display = 'flex';
+}
+
+function closeHelpPopup() {
+  const hp = document.getElementById('helpPopup');
+  if (hp) hp.style.display = 'none';
+}
+
+function helpOverlayClick(e) {
+  if (e.target === document.getElementById('helpPopup')) closeHelpPopup();
 }
 
 /* ── Canny math ── */
@@ -856,242 +1113,7 @@ function putThr(ctx, nms, w, h, maxMag, thi, tloR) {
   ctx.putImageData(id, 0, 0);
 }
 
-/* ── Tuning playground ── */
-function p3update() {
-  const sigma = +document.getElementById('p3sigma').value;
-  const thi   = +document.getElementById('p3thi').value / 100;
-  const tloR  = +document.getElementById('p3tlo').value / 100;
-  document.getElementById('p3sv').textContent  = sigma;
-  document.getElementById('p3thv').textContent = Math.round(thi * 100) + '%';
-  document.getElementById('p3tlv').textContent = Math.round(tloR * 100) + '%';
-  const w = p3inCv.width, h = p3inCv.height;
-  const g = getGray(p3inctx.getImageData(0,0,w,h), w, h);
-  const b = gaussBlur(g, w, h, sigma);
-  const { mag, dir, maxMag } = computeSobel(b, w, h);
-  const nms = applyNMS(mag, dir, w, h);
-  putBin(p3outctx, runHysteresis(nms, w, h, maxMag, thi, tloR), w, h);
-  tunOutCtx.drawImage(p3outCv, 0, 0, tunOut.width, tunOut.height);
-  const lbl = document.getElementById('tunOutLabel');
-  if (lbl) lbl.textContent = `\u03c3=${sigma}  T\u1d34i=${Math.round(thi*100)}%  T\u2097\u2092=${Math.round(thi*tloR*100)}%`;
-}
 
-/* ── Source selector ── */
-function setSrc(s) {
-  curSrc = s;
-  ['sample','upload','cam'].forEach(id => {
-    const el = document.getElementById('src-'+id);
-    if (el) el.style.display = id === s ? '' : 'none';
-  });
-  document.querySelectorAll('.src-card').forEach(t => t.classList.toggle('on', t.dataset.src === s));
-  if (s !== 'cam' && camRunning) stopCam();
-  if (s === 'sample') SAMPLES[curSampleIdx].fn();
-}
-
-function loadFile(input) {
-  const f = input.files[0]; if (!f) return;
-  const img = new Image();
-  img.onload = () => {
-    cinctx.drawImage(img, 0, 0, cin.width, cin.height);
-    p3inctx.drawImage(img, 0, 0, p3inCv.width, p3inCv.height);
-    tunInCtx.drawImage(img, 0, 0, tunIn.width, tunIn.height);
-    syncAll(); URL.revokeObjectURL(img.src);
-  };
-  img.src = URL.createObjectURL(f);
-}
-
-async function toggleCam() {
-  if (camRunning) { stopCam(); return; }
-  try {
-    camStream = await navigator.mediaDevices.getUserMedia({ video: { width: 340, height: 255 } });
-    const v = document.getElementById('vid');
-    v.srcObject = camStream; v.style.display = 'block';
-    v.onloadedmetadata = () => {
-      camRunning = true;
-      document.getElementById('cbtn').innerHTML = '<span class="cam-btn-icon">&#9209;</span> Stop camera';
-      document.getElementById('cstat').textContent = '&#9679; Live';
-      camLoop();
-    };
-  } catch(e) { document.getElementById('cstat').textContent = 'Camera unavailable'; }
-}
-function stopCam() {
-  camRunning = false;
-  if (camStream) { camStream.getTracks().forEach(t => t.stop()); camStream = null; }
-  if (rafId) { cancelAnimationFrame(rafId); rafId = null; }
-  document.getElementById('vid').style.display = 'none';
-  document.getElementById('cbtn').innerHTML = '<span class="cam-btn-icon">&#9654;</span> Start camera';
-  document.getElementById('cstat').textContent = '';
-}
-function camLoop() {
-  if (!camRunning) return;
-  const v = document.getElementById('vid');
-  cinctx.drawImage(v, 0, 0, cin.width, cin.height);
-  p3inctx.drawImage(v, 0, 0, p3inCv.width, p3inCv.height);
-  tunInCtx.drawImage(v, 0, 0, tunIn.width, tunIn.height);
-  if (tuningUnlocked) p3update();
-  rafId = requestAnimationFrame(camLoop);
-}
-
-/* ── Popup: tuning intro ── */
-function openTuningPopup() {
-  const overlay = document.getElementById('tuningPopup');
-  if (!overlay) return;
-  overlay.style.display = 'flex';
-  showPopupPage(1);
-}
-function closeTuningPopup() {
-  document.getElementById('tuningPopup').style.display = 'none';
-}
-function popupOverlayClick(e) {
-  if (e.target === document.getElementById('tuningPopup')) closeTuningPopup();
-}
-function showPopupPage(n) {
-  document.getElementById('popupPage1').style.display = n === 1 ? '' : 'none';
-  document.getElementById('popupPage2').style.display = n === 2 ? '' : 'none';
-  if (n === 2) initQuizPage();
-}
-
-/* ── Quiz ── */
-let goldStandard = null;
-const QUIZ_GOLD  = { sigma: 1, thi: 0.28, tloR: 0.38 };
-const QUIZ_START = { sigma: 4, thi: 60,   tlo: 20    };
-
-function computeGoldStandard() {
-  const w = p3inCv.width, h = p3inCv.height;
-  const g = getGray(p3inctx.getImageData(0,0,w,h), w, h);
-  const b = gaussBlur(g, w, h, QUIZ_GOLD.sigma);
-  const { mag, dir, maxMag } = computeSobel(b, w, h);
-  const nms = applyNMS(mag, dir, w, h);
-  goldStandard = runHysteresis(nms, w, h, maxMag, QUIZ_GOLD.thi, QUIZ_GOLD.tloR);
-}
-
-function computeQuizScore(userMask) {
-  if (!goldStandard || !userMask) return 0;
-  let inter = 0, union = 0;
-  for (let i = 0; i < goldStandard.length; i++) {
-    const g = goldStandard[i] > 0 ? 1 : 0;
-    const u = userMask[i]    > 0 ? 1 : 0;
-    if (g && u) inter++;
-    if (g || u) union++;
-  }
-  return union === 0 ? 0 : Math.round(inter / union * 100);
-}
-
-function initQuizPage() {
-  // Reset success banner
-  const suc = document.getElementById('quizSuccess');
-  if (suc) suc.style.display = 'none';
-  // Load lizard, compute gold, then start quiz
-  const img = new Image();
-  img.onload = () => {
-    p3inctx.drawImage(img, 0, 0, p3inCv.width, p3inCv.height);
-    computeGoldStandard();
-    renderQuizTarget();
-    document.getElementById('quizSigma').value = QUIZ_START.sigma;
-    document.getElementById('quizThi').value   = QUIZ_START.thi;
-    document.getElementById('quizTlo').value   = QUIZ_START.tlo;
-    // Reset match bar
-    const fill  = document.getElementById('quizMatchFill');
-    const label = document.getElementById('quizMatchLabel');
-    if (fill)  { fill.style.width = '0%'; fill.style.background = 'var(--border-med)'; }
-    if (label) { label.textContent = 'Adjust the sliders to begin'; label.style.color = 'var(--muted)'; }
-    quizUpdate();
-  };
-  img.src = IMG_SRC_IMG;
-}
-
-function renderQuizTarget() {
-  const tgt = document.getElementById('quizTarget');
-  if (!tgt || !goldStandard) return;
-  const w = p3inCv.width, h = p3inCv.height;
-  putBin(p3outctx, goldStandard, w, h);
-  tgt.getContext('2d').drawImage(p3outCv, 0, 0, tgt.width, tgt.height);
-}
-
-function quizUpdate() {
-  const sigma = +document.getElementById('quizSigma').value;
-  const thi   = +document.getElementById('quizThi').value / 100;
-  const tloR  = +document.getElementById('quizTlo').value / 100;
-  document.getElementById('quizSigmaBadge').textContent = sigma;
-  document.getElementById('quizThiBadge').textContent   = Math.round(thi  * 100) + '%';
-  document.getElementById('quizTloBadge').textContent   = Math.round(tloR * 100) + '%';
-  const w = p3inCv.width, h = p3inCv.height;
-  const g = getGray(p3inctx.getImageData(0,0,w,h), w, h);
-  const b = gaussBlur(g, w, h, sigma);
-  const { mag, dir, maxMag } = computeSobel(b, w, h);
-  const nms = applyNMS(mag, dir, w, h);
-  const result = runHysteresis(nms, w, h, maxMag, thi, tloR);
-  putBin(p3outctx, result, w, h);
-  const qOut = document.getElementById('quizOut');
-  if (qOut) qOut.getContext('2d').drawImage(p3outCv, 0, 0, qOut.width, qOut.height);
-  const score = computeQuizScore(result);
-  updateQuizMatchUI(score);
-  if (score >= 88) {
-    const suc = document.getElementById('quizSuccess');
-    if (suc && suc.style.display === 'none') showQuizPass();
-  }
-}
-
-function updateQuizMatchUI(score) {
-  const fill  = document.getElementById('quizMatchFill');
-  const label = document.getElementById('quizMatchLabel');
-  if (!fill || !label) return;
-  fill.style.width = score + '%';
-  if (score >= 88) {
-    fill.style.background = 'var(--accent)';
-    label.textContent = 'Perfect match \u2014 scroll down!';
-    label.style.color = 'var(--accent)';
-  } else if (score >= 68) {
-    fill.style.background = '#3b82f6';
-    label.textContent = 'Very close \u2014 keep fine-tuning';
-    label.style.color = 'var(--ink)';
-  } else if (score >= 44) {
-    fill.style.background = '#93c5fd';
-    label.textContent = 'Getting closer...';
-    label.style.color = 'var(--muted2)';
-  } else {
-    fill.style.background = 'var(--border-med)';
-    label.textContent = 'Adjust the sliders to begin';
-    label.style.color = 'var(--muted)';
-  }
-}
-
-function showQuizPass() {
-  const s = document.getElementById('quizSuccess');
-  if (!s) return;
-  s.style.display = 'block';
-  setTimeout(() => s.scrollIntoView({ behavior: 'smooth', block: 'nearest' }), 80);
-}
-
-function enterTuning() {
-  closeTuningPopup();
-  tuningUnlocked = true;
-  buildSamplePills();
-  const pg = document.getElementById('tuningPlayground');
-  if (pg) {
-    pg.style.display = '';
-    setTimeout(() => {
-      pg.scrollIntoView({ behavior: 'smooth', block: 'start' });
-      pg.classList.add('playground-highlight');
-      setTimeout(() => pg.classList.remove('playground-highlight'), 1200);
-    }, 300);
-  }
-  tunInCtx.drawImage(cin, 0, 0, tunIn.width, tunIn.height);
-  p3inctx.drawImage(cin, 0, 0, p3inCv.width, p3inCv.height);
-  p3update();
-}
-
-/* ── Help popup ── */
-function openHelpPopup() {
-  const hp = document.getElementById('helpPopup');
-  if (hp) hp.style.display = 'flex';
-}
-function closeHelpPopup() {
-  const hp = document.getElementById('helpPopup');
-  if (hp) hp.style.display = 'none';
-}
-function helpOverlayClick(e) {
-  if (e.target === document.getElementById('helpPopup')) closeHelpPopup();
-}
 
 /* ──────────────────────────────────────────
    INIT
@@ -1099,7 +1121,7 @@ function helpOverlayClick(e) {
 buildFilterPills();
 selectFilter('sobel');
 clearDraw();
-buildPipeDots();
-renderPipeStep();
+buildSamplePills();
+buildSharedStepBar();
 rebuildAnim();
 SAMPLES[0].fn(); // Load lizard on start
