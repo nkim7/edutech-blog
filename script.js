@@ -980,8 +980,11 @@ function showPopupPage(n) {
 
 function showQuizPass() {
   // Show the success as a second popup on top of the quiz popup
-  const sp = document.getElementById('successPopup');
-  if (sp) sp.style.display = 'flex';
+  // Add a small delay to let the "Perfect match!" message sink in
+  setTimeout(() => {
+    const sp = document.getElementById('successPopup');
+    if (sp) sp.style.display = 'flex';
+  }, 1200);
 }
 
 function closeSuccessPopup() {
