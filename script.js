@@ -641,7 +641,7 @@ function loadImgToAll(src) {
   img.onload = () => {
     cinctx.drawImage(img, 0, 0, cin.width, cin.height);
     p3inctx.drawImage(img, 0, 0, p3inCv.width, p3inCv.height);
-    runP2(); p3update();
+    syncAll();
   };
   img.src = src;
 }
@@ -696,7 +696,8 @@ function drawPortrait2() {
 
 function syncAll() {
   p3inctx.drawImage(cin, 0, 0, p3inCv.width, p3inCv.height);
-  runP2(); p3update();
+  if (_cannySlideIdx === 0) runP2();
+  else p3update();
 }
 
 const SAMPLES = [
@@ -734,35 +735,37 @@ const P3STEPS = [
   { id:'all', label:'Full Canny', showThr:true, note:'All three hyperparameters live simultaneously. Try the presets: "σ=0 no blur" shows noise exploding; "High T_hi" shows only dominant contours; "T_lo ≈ T_hi" removes hysteresis — no weak edges ever recover.' }
 ];
 
-function buildStepBars() {
-  ['p2stepbar','p3stepbar'].forEach((barId, idx) => {
-    const steps = idx === 0 ? P2STEPS : P3STEPS;
-    const bar = document.getElementById(barId);
-    bar.innerHTML = '';
-    steps.forEach(s => {
-      const p = document.createElement('button');
-      p.className = 'step-pill' + (s.id === (idx===0?curP2Step:curP3Step) ? ' on' : '');
-      p.textContent = s.label;
-      p.onclick = idx === 0 ? () => setP2Step(s.id) : () => setP3Step(s.id);
-      bar.appendChild(p);
-    });
+function buildSharedStepBar() {
+  const bar = document.getElementById('sharedStepBar');
+  if (!bar) return;
+  bar.innerHTML = '';
+  P2STEPS.forEach(s => {
+    const p = document.createElement('button');
+    p.className = 'step-pill' + (s.id === curP2Step ? ' on' : '');
+    p.textContent = s.label;
+    p.onclick = () => {
+      if (_cannySlideIdx === 0) setP2Step(s.id);
+      else setP3Step(s.id);
+    };
+    bar.appendChild(p);
   });
 }
 
 function setP2Step(id) {
   curP2Step = id;
-  document.querySelectorAll('#p2stepbar .step-pill').forEach((p,i) => p.classList.toggle('on', P2STEPS[i].id === id));
+  document.querySelectorAll('#sharedStepBar .step-pill').forEach((p,i) => p.classList.toggle('on', P2STEPS[i].id === id));
   const cfg = P2STEPS.find(s => s.id === id);
-  document.getElementById('p2-outlabel').textContent = cfg.label.replace(/^\d+ · /, '');
-  document.getElementById('p2-note').textContent = cfg.note;
+  const lbl = document.getElementById('shared-outlabel');
+  if (lbl) lbl.textContent = id === 'all' ? 'Full Canny' : cfg.label.replace(/^\d+ · /, '');
+  const note = document.getElementById('p2-note');
+  if (note) note.textContent = cfg.note;
   runP2();
 }
 
 function setP3Step(id) {
   curP3Step = id;
-  document.querySelectorAll('#p3stepbar .step-pill').forEach((p,i) => p.classList.toggle('on', P3STEPS[i].id === id));
+  document.querySelectorAll('#sharedStepBar .step-pill').forEach((p,i) => p.classList.toggle('on', P3STEPS[i].id === id));
   const cfg = P3STEPS.find(s => s.id === id);
-  document.getElementById('p3-outlabel').textContent = cfg.label.replace(/^\d+ · /, '');
   document.getElementById('p3thr-wrap').style.display = cfg.showThr ? 'block' : 'none';
   document.getElementById('p3presets').style.display = cfg.showThr ? 'block' : 'none';
   p3update();
@@ -894,18 +897,19 @@ function p3update() {
   document.getElementById('p3sv').textContent = sigma;
   document.getElementById('p3thv').textContent = Math.round(thi*100) + '%';
   document.getElementById('p3tlv').textContent = Math.round(tloR*100) + '%';
+  // Render into the shared output canvas (coutctx)
   const w=p3inCv.width,h=p3inCv.height;
   const g=getGray(p3inctx.getImageData(0,0,w,h),w,h);
   const b=gaussBlur(g,w,h,sigma);
-  if(curP3Step==='blur'){putGrayF(p3outctx,b,w,h,255);}
+  if(curP3Step==='blur'){putGrayF(coutctx,b,w,h,255);}
   else {
     const {mag,dir,maxMag}=computeSobel(b,w,h);
-    if(curP3Step==='gradient'){putGrayF(p3outctx,mag,w,h,maxMag);}
+    if(curP3Step==='gradient'){putGrayF(coutctx,mag,w,h,maxMag);}
     else {
       const nms=applyNMS(mag,dir,w,h);
-      if(curP3Step==='nms'){putGrayF(p3outctx,nms,w,h,maxMag);}
-      else if(curP3Step==='threshold'){putThr(p3outctx,nms,w,h,maxMag,thi,tloR);}
-      else{putBin(p3outctx,runHysteresis(nms,w,h,maxMag,thi,tloR),w,h);}
+      if(curP3Step==='nms'){putGrayF(coutctx,nms,w,h,maxMag);}
+      else if(curP3Step==='threshold'){putThr(coutctx,nms,w,h,maxMag,thi,tloR);}
+      else{putBin(coutctx,runHysteresis(nms,w,h,maxMag,thi,tloR),w,h);}
     }
   }
   const cfg = P3STEPS.find(s=>s.id===curP3Step);
@@ -920,10 +924,14 @@ function p3update() {
     if(tloPct>=70) notes.push(`T_lo=${tloPct}%: narrow hysteresis band, few weak edges recovered.`);
     else if(tloPct<=20) notes.push(`T_lo=${tloPct}%: wide band, many weak edges recovered.`);
   }
-  document.getElementById('p3-note').textContent = notes.join('  ·  ');
-  if(curP3Step==='all') {
-    document.getElementById('p3-outlabel').textContent =
-      `Full Canny  (σ=${sigma}, T_hi=${Math.round(thi*100)}%, T_lo=${Math.round(thi*tloR*100)}%)`;
+  const p3note = document.getElementById('p3-note');
+  if (p3note) p3note.textContent = notes.join('  ·  ');
+  // Update shared output label
+  const lbl = document.getElementById('shared-outlabel');
+  if (lbl) {
+    lbl.textContent = curP3Step === 'all'
+      ? `Full Canny  (σ=${sigma}, T_hi=${Math.round(thi*100)}%, T_lo=${Math.round(thi*tloR*100)}%)`
+      : (P3STEPS.find(s=>s.id===curP3Step)?.label.replace(/^\d+ · /, '') || 'Output');
   }
 }
 
@@ -950,7 +958,7 @@ function loadFile(input) {
   img.onload = () => {
     cinctx.drawImage(img,0,0,cin.width,cin.height);
     p3inctx.drawImage(img,0,0,p3inCv.width,p3inCv.height);
-    runP2(); p3update(); URL.revokeObjectURL(img.src);
+    syncAll(); URL.revokeObjectURL(img.src);
   };
   img.src = URL.createObjectURL(f);
 }
@@ -981,7 +989,7 @@ function camLoop() {
   if(!camRunning)return;
   cinctx.drawImage(document.getElementById('vid'),0,0,cin.width,cin.height);
   p3inctx.drawImage(document.getElementById('vid'),0,0,p3inCv.width,p3inCv.height);
-  runP2(); p3update();
+  if (_cannySlideIdx === 0) runP2(); else p3update();
   rafId=requestAnimationFrame(camLoop);
 }
 
@@ -993,6 +1001,42 @@ function cannySlide(idx) {
   _cannySlideIdx = idx;
   const track = document.getElementById('cannyTrack');
   if (track) track.style.transform = `translateX(${-idx * 100}%)`;
+  // Update big toggle button appearance
+  const btn  = document.getElementById('slideNavBigBtn');
+  const lbl  = document.getElementById('slideNavLabel');
+  const arrow = document.getElementById('slideNavArrow');
+  if (idx === 0) {
+    if (lbl)   lbl.textContent   = 'Hyperparameter Tuning';
+    if (arrow) arrow.textContent = '→';
+    if (btn)   btn.classList.remove('is-back');
+    // Sync step and render pipeline view
+    curP2Step = curP3Step;
+    document.querySelectorAll('#sharedStepBar .step-pill').forEach((p,i) =>
+      p.classList.toggle('on', P2STEPS[i].id === curP2Step));
+    const cfg2 = P2STEPS.find(s => s.id === curP2Step);
+    const note = document.getElementById('p2-note');
+    if (note && cfg2) note.textContent = cfg2.note;
+    const outlbl = document.getElementById('shared-outlabel');
+    if (outlbl && cfg2) outlbl.textContent = curP2Step === 'all' ? 'Full Canny' : cfg2.label.replace(/^\d+ · /, '');
+    runP2();
+  } else {
+    if (lbl)   lbl.textContent   = 'Back to Pipeline';
+    if (arrow) arrow.textContent = '←';
+    if (btn)   btn.classList.add('is-back');
+    // Sync step and show/hide tuning controls
+    curP3Step = curP2Step;
+    document.querySelectorAll('#sharedStepBar .step-pill').forEach((p,i) =>
+      p.classList.toggle('on', P3STEPS[i].id === curP3Step));
+    const cfg3 = P3STEPS.find(s => s.id === curP3Step);
+    if (cfg3) {
+      document.getElementById('p3thr-wrap').style.display = cfg3.showThr ? 'block' : 'none';
+      document.getElementById('p3presets').style.display  = cfg3.showThr ? 'block' : 'none';
+    }
+    p3update();
+  }
+}
+function cannySlideToggle() {
+  cannySlide(_cannySlideIdx === 0 ? 1 : 0);
 }
 
 /* ──────────────────────────────────────────
@@ -1002,8 +1046,7 @@ buildFilterPills();
 selectFilter('sobel');
 clearDraw();
 buildSamplePills();
-buildStepBars();
+buildSharedStepBar();
 setP2Step('all');
-setP3Step('all');
 rebuildAnim();
 SAMPLES[0].fn(); // Start with lizard image as default

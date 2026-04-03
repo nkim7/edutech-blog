@@ -961,6 +961,59 @@ sub, sup { font-size: 0.8em; }
 }
 
 /* ════════════════════════════════════════
+   BIG SLIDE NAVIGATION TOGGLE
+════════════════════════════════════════ */
+.slide-nav-big {
+  display: flex;
+  justify-content: center;
+  margin: 2rem auto 0.5rem;
+  max-width: var(--max-w);
+}
+.slide-nav-big-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.65rem;
+  padding: 0.9rem 2.25rem;
+  background: var(--accent);
+  color: #fff;
+  border: none;
+  border-radius: var(--rad-pill);
+  font-family: var(--sans);
+  font-size: 1.05rem;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  cursor: pointer;
+  transition: background .18s, transform .18s, box-shadow .18s;
+  box-shadow: 0 4px 20px rgba(37, 99, 235, 0.30);
+}
+.slide-nav-big-btn:hover {
+  background: var(--accent-deep);
+  transform: translateY(-2px);
+  box-shadow: 0 7px 26px rgba(37, 99, 235, 0.42);
+}
+.slide-nav-big-arrow {
+  font-size: 1.2rem;
+  display: inline-block;
+  transition: transform 0.25s;
+}
+.slide-nav-big-btn:hover .slide-nav-big-arrow {
+  transform: translateX(6px);
+}
+/* Back-arrow direction when on slide 1 */
+.slide-nav-big-btn.is-back .slide-nav-big-arrow {
+  order: -1;
+}
+.slide-nav-big-btn.is-back:hover .slide-nav-big-arrow {
+  transform: translateX(-6px);
+}
+
+/* Part number spanning two parts (02–03) */
+.part-number--span {
+  font-size: 2.6rem;
+  letter-spacing: -0.03em;
+}
+
+/* ════════════════════════════════════════
    CANNY SLIDE TRANSITION (parts 02 & 03)
 ════════════════════════════════════════ */
 .canny-slider-wrap {
