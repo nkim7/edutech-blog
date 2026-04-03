@@ -155,16 +155,12 @@ function rebuildAnim() {
   slider.value = 0;
   updatePosLabel();
   renderKernelDisplay(k, ks, label);
-  document.getElementById('animCalc').textContent = 'Drag the slider or press Play to step through.';
-  document.getElementById('animResult').textContent = '—';
-  document.getElementById('animResultSub').textContent = '';
-  document.getElementById('animNote').textContent =
-    `${label}. Input ${n}×${n}, window ${ks}×${ks}, stride ${stride}, padding ${pad > 0 ? 'zero-pad (same)' : 'none (valid)'}. Output: ${outs}×${outs}.`;
   document.getElementById('inputSizeLabel').textContent = pad > 0 ? `${n}×${n} + padding` : `${n}×${n}`;
   document.getElementById('outputSizeLabel').textContent = `${outs}×${outs}`;
-  document.getElementById('animOutLabel').textContent = `Output (${outs}×${outs})`;
+  const outLbl = document.getElementById('animOutLabel');
+  if (outLbl) outLbl.textContent = `Output (${outs}×${outs})`;
   stopPlay();
-  drawAnimCanvases(0);
+  drawAnimCanvases(0); // shows position 0 with computation immediately
 }
 
 const CELL_MAX = 48, CELL_MIN = 28;
@@ -282,10 +278,12 @@ function updateCalcDisplay(pos) {
   const c0 = (pos % outs) * stride;
   const terms = [];
   let sum = 0;
+  const windowVals = [];
   for (let ki = 0; ki < ks; ki++) {
     for (let kj = 0; kj < ks; kj++) {
       const gv = (padMat[r0+ki] && padMat[r0+ki][c0+kj] !== undefined) ? padMat[r0+ki][c0+kj] : 0;
       const kv = k[ki*ks + kj];
+      windowVals.push(gv);
       if (kv !== 0) {
         const kd = Number.isInteger(kv) ? kv : kv.toFixed(2);
         terms.push(`${gv}×${kd}`);
@@ -308,6 +306,51 @@ function updateCalcDisplay(pos) {
   };
   document.getElementById('animNote').textContent =
     `Window at input rows ${r0}–${r0+animData.ks-1}, cols ${c0}–${c0+animData.ks-1}. Output [${or},${oc}]. ${opLabels[op] || ''}`;
+
+  // Dynamic callout
+  updateCallout(op, windowVals, ks, raw, clamped, r0, c0, or, oc);
+}
+
+function updateCallout(op, windowVals, ks, raw, clamped, r0, c0, or, oc) {
+  const box = document.getElementById('calloutBox');
+  if (!box) return;
+  const mean = Math.round(windowVals.reduce((a, b) => a + b, 0) / windowVals.length);
+  const minV = Math.min(...windowVals), maxV = Math.max(...windowVals);
+  const spread = maxV - minV;
+
+  let html = '';
+  if (op === 'avgpool') {
+    const brightness = mean > 180 ? 'bright' : mean > 80 ? 'mid-tone' : 'dark';
+    html = `<span class="callout-accent">Avg pool — window [${r0},${c0}] → out[${or},${oc}]</span> — `
+      + `The ${ks}×${ks} window holds ${windowVals.length} pixels. Their mean is <strong>${mean}</strong> `
+      + `(min ${minV}, max ${maxV}), a <em>${brightness}</em> region. `
+      + `Every weight is 1/${ks*ks} = ${(1/(ks*ks)).toFixed(2)}, so the output is simply the average brightness. `
+      + `Spatial detail within the window is discarded — only the overall tone survives. `
+      + (spread < 20 ? `Low spread (${spread}) = uniform patch, pooling loses little information.`
+        : spread < 80 ? `Moderate spread (${spread}) = some texture is being merged.`
+        : `High spread (${spread}) = varied patch, pooling significantly reduces detail here.`);
+  } else if (op === 'edge') {
+    const absRaw = Math.abs(raw);
+    html = `<span class="callout-accent">Sobel X gradient — out[${or},${oc}]</span> — `
+      + `Raw value <strong>${raw}</strong>, clamped to <strong>${clamped}</strong>. `
+      + (absRaw < 10 ? `Near-zero gradient — the pixel intensity is roughly the same on both sides. No horizontal edge here.`
+        : absRaw < 60 ? `Mild gradient — a gentle horizontal transition in brightness across this window.`
+        : `Strong gradient — a sharp horizontal edge exists here. The left and right sides of the window differ significantly.`)
+      + ` (Output near 128 = no edge; far from 128 = strong edge.)`;
+  } else if (op === 'blur') {
+    html = `<span class="callout-accent">Gaussian blur — out[${or},${oc}]</span> — `
+      + `Centre pixel (weight 4/16) contributes most; neighbours (2/16) next; corners (1/16) least. `
+      + `Weighted sum <strong>${raw}</strong> → output <strong>${clamped}</strong>. `
+      + (spread < 20 ? `Low spread (${spread}): neighbours are similar, so blur changes very little here.`
+        : spread < 80 ? `Moderate spread (${spread}): some noise or detail is being softened.`
+        : `High spread (${spread}): big intensity jump in this area — blurring will visibly smooth this edge.`);
+  } else if (op === 'identity') {
+    html = `<span class="callout-accent">Identity — out[${or},${oc}]</span> — `
+      + `The centre weight is 1, all others are 0. So the output <strong>${clamped}</strong> equals the centre pixel's input value exactly. `
+      + `No neighbours contribute. This is the mathematical no-op: I ★ δ = I. `
+      + `Useful as a baseline — if your output doesn't match here, something in the pipeline is broken.`;
+  }
+  box.innerHTML = html;
 }
 
 function seekAnim(pos) {
@@ -472,7 +515,7 @@ function renderCalcExample(id, f) {
         const lum = Math.round(v / 255 * 100);
         bg = `hsl(0,0%,${lum}%)`; col = v > 128 ? '#222' : '#eee';
       }
-      d.style.cssText = `width:${CELL}px;height:${CELL_H}px;display:flex;align-items:center;justify-content:center;font-family:Merriweather,Georgia,serif;font-size:12px;font-weight:700;border-radius:3px;background:${bg};color:${col}`;
+      d.style.cssText = `width:${CELL}px;height:${CELL_H}px;display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-size:12px;font-weight:700;border-radius:3px;background:${bg};color:${col}`;
       d.textContent = Number.isInteger(v) ? v : v.toFixed(2);
       g.appendChild(d);
     });
@@ -498,7 +541,7 @@ function renderCalcExample(id, f) {
   // Bottom: full equation
   const eq = document.createElement('div');
   const shownTerms = flat.map((v,i) => k[i] !== 0 ? `${v}×${Number.isInteger(k[i]) ? k[i] : k[i].toFixed(2)}` : null).filter(Boolean);
-  eq.style.cssText = `font-family:Merriweather,Georgia,serif;font-size:13px;line-height:1.85;color:var(--dk-muted);background:var(--dk-bg3);padding:10px 14px;border-radius:5px;border-left:3px solid var(--gold);white-space:pre-wrap`;
+  eq.style.cssText = `font-family:var(--mono);font-size:0.9rem;line-height:1.85;color:var(--dk-muted);background:var(--dk-bg3);padding:10px 14px;border-radius:5px;border-left:3px solid var(--gold);white-space:pre-wrap`;
   eq.textContent = '= ' + shownTerms.slice(0,6).join(' + ') + (shownTerms.length > 6 ? '\n  + …' : '') + '\n= ' + Math.round(sum/div) + (isEmboss ? ' + 128 = ' + out : '   →   output: ' + out);
   el.appendChild(eq);
 }
@@ -585,8 +628,7 @@ const p3inctx = p3inCv.getContext('2d'), p3outctx = p3outCv.getContext('2d');
 let curSrc = 'sample', camStream = null, camRunning = false, rafId = null;
 let curP2Step = 'all', curP3Step = 'all';
 
-// Image placeholder — replace with actual base64 or URL when deploying
-const IMG_SRC = './lizard.jpg';
+const IMG_SRC = './Large_Scaled_Forest_Lizard.jpg';
 
 function loadImgToAll(src) {
   const img = new Image();
@@ -653,7 +695,7 @@ function syncAll() {
 }
 
 const SAMPLES = [
-  { label: 'Lizard', fn: () => loadImgToAll(IMG_SRC) },
+  { label: 'Image', fn: () => loadImgToAll(IMG_SRC) },
   { label: 'Portrait', fn: drawFace },
   { label: 'Textures', fn: drawTexture },
   { label: 'Architecture', fn: drawArch },
@@ -886,7 +928,7 @@ function setSrc(s) {
   ['sample','upload','cam'].forEach(id=>{
     document.getElementById('src-'+id).style.display = id===s ? '' : 'none';
   });
-  document.querySelectorAll('.src-tab').forEach(t => t.classList.toggle('on', t.dataset.src === s));
+  document.querySelectorAll('.src-card').forEach(t => t.classList.toggle('on', t.dataset.src === s));
   if(s!=='cam' && camRunning) stopCam();
   if(s==='sample') SAMPLES[0].fn();
 }
@@ -910,7 +952,7 @@ async function toggleCam() {
     v.srcObject = camStream; v.style.display='block';
     v.onloadedmetadata = () => {
       camRunning=true;
-      document.getElementById('cbtn').textContent='Stop camera';
+      document.getElementById('cbtn').innerHTML='<span class="cam-btn-icon">⏹</span> Stop camera';
       document.getElementById('cstat').textContent='● Live';
       camLoop();
     };
@@ -921,7 +963,7 @@ function stopCam() {
   if(camStream){camStream.getTracks().forEach(t=>t.stop());camStream=null;}
   if(rafId){cancelAnimationFrame(rafId);rafId=null;}
   document.getElementById('vid').style.display='none';
-  document.getElementById('cbtn').textContent='Start camera';
+  document.getElementById('cbtn').innerHTML='<span class="cam-btn-icon">▶</span> Start camera';
   document.getElementById('cstat').textContent='';
 }
 function camLoop() {

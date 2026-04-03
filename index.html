@@ -20,7 +20,7 @@
     <a href="#part2">Canny</a>
     <a href="#part3">Tuning</a>
   </div>
-  <div class="nav-tag">CS × Vision</div>
+  <div class="nav-tag">Nagyung Kim</div>
 </nav>
 
 <!-- HERO -->
@@ -31,7 +31,7 @@
   <div class="hero-content">
     <div class="hero-kicker">
       <span class="hero-kicker-dot"></span>
-      University Computer Vision — Interactive Explainer
+      Interactive Explainer
     </div>
     <h1 class="hero-title">
       <span class="hero-title-line">Seeing</span>
@@ -71,7 +71,9 @@
     <div class="concept-card">
       <div class="concept-card-num">03</div>
       <h3>Padding</h3>
-      <p><strong>None (valid):</strong> output shrinks by <em>kernel_size − 1</em>. <strong>Zero-pad (same):</strong> zeros border the input so the output stays the same size as the input.</p>
+      <p>The kernel needs space to centre on every pixel. Edge pixels have no neighbours outside the image — what happens there?</p>
+      <p style="margin-top:.6rem"><strong>None (valid):</strong> skip edge pixels entirely. A 3×3 kernel on a 5×5 image can only centre on the inner 3×3 region → output shrinks to 3×3.</p>
+      <p style="margin-top:.4rem"><strong>Zero-pad (same):</strong> surround the input with a border of 0s first, giving the kernel room to centre on every original pixel → output stays 5×5.</p>
     </div>
   </div>
 
@@ -184,7 +186,7 @@
   </div>
   <div class="anim-note" id="animNote">Choose settings and press Play, or drag the slider.</div>
 
-  <div class="callout-box">
+  <div class="callout-box" id="calloutBox">
     <span class="callout-accent">Average pooling</span> — switch Operation to "Avg pool" to see this CNN primitive. Every weight = 1/k² where k is the window size. The output is the mean pixel value in each window — spatial downsampling that preserves rough structure. Used to reduce feature map size between layers.
   </div>
 </section>
@@ -305,28 +307,46 @@
 
   <p class="part-sub-intro">Choose an image source below and step through each stage to see what every operation contributes.</p>
 
-  <div class="src-bar">
-    <div class="src-tabs" id="srcTabs">
-      <button class="src-tab on" data-src="sample" onclick="setSrc('sample')">Sample images</button>
-      <button class="src-tab" data-src="upload" onclick="setSrc('upload')">Upload your own</button>
-      <button class="src-tab" data-src="cam" onclick="setSrc('cam')">Webcam</button>
-    </div>
+  <div class="src-cards" id="srcTabs">
+    <button class="src-card on" data-src="sample" onclick="setSrc('sample')">
+      <span class="src-card-icon">🖼</span>
+      <span class="src-card-title">Sample images</span>
+      <span class="src-card-sub">Choose a preset scene</span>
+    </button>
+    <button class="src-card" data-src="upload" onclick="setSrc('upload')">
+      <span class="src-card-icon">⬆️</span>
+      <span class="src-card-title">Upload your own</span>
+      <span class="src-card-sub">Try any photo from your device</span>
+    </button>
+    <button class="src-card" data-src="cam" onclick="setSrc('cam')">
+      <span class="src-card-icon">📷</span>
+      <span class="src-card-title">Live webcam</span>
+      <span class="src-card-sub">See Canny detect edges in real time</span>
+    </button>
   </div>
+
   <div id="src-sample">
     <div class="pills" id="spills"></div>
   </div>
   <div id="src-upload" style="display:none">
     <div class="upload-zone" onclick="document.getElementById('fin').click()">
       <div class="upload-icon">+</div>
-      <div class="upload-title">Click to choose an image</div>
-      <div class="upload-sub">Any photo — faces, architecture, textures, nature</div>
+      <div class="upload-title">Click to upload your image</div>
+      <div class="upload-sub">Any photo works — faces, nature, buildings, textures.<br>See how Canny responds to edges in <em>your</em> images.</div>
       <input type="file" id="fin" accept="image/*" style="display:none" onchange="loadFile(this)">
     </div>
   </div>
   <div id="src-cam" style="display:none">
-    <div class="cam-row">
-      <button class="cam-btn" id="cbtn" onclick="toggleCam()">Start camera</button>
-      <span class="cam-status" id="cstat"></span>
+    <div class="cam-panel">
+      <div class="cam-intro">
+        <p class="cam-intro-text">Point your camera at anything — hands, a book, your face, a scene outside. Canny will detect edges live as you move.</p>
+      </div>
+      <div class="cam-controls-row">
+        <button class="cam-btn-large" id="cbtn" onclick="toggleCam()">
+          <span class="cam-btn-icon">▶</span> Start camera
+        </button>
+        <span class="cam-status" id="cstat"></span>
+      </div>
     </div>
     <video id="vid" autoplay muted playsinline style="display:none;width:0;height:0"></video>
   </div>
