@@ -122,7 +122,7 @@
       <label class="ctrl-label">Operation</label>
       <div class="select-wrap">
         <select id="opMode">
-          <option value="edge">Edge detect</option>
+    
           <option value="blur">Blur (Gaussian)</option>
           <option value="avgpool">Avg pool</option>
           <option value="identity">Identity</option>
@@ -306,6 +306,10 @@
   </div>
 
   <div class="step-bar" id="sharedStepBar"></div>
+
+<div class="step-note" id="p2-note">
+  Double thresholding identifies strong (white) and weak (blue) edges.
+</div>
 
   <div class="canny-section">
     <div class="canny-canvases">

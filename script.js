@@ -629,7 +629,7 @@ const p3inCv = document.getElementById('p3in'), p3outCv = document.getElementByI
 const p3inctx = p3inCv.getContext('2d'), p3outctx = p3outCv.getContext('2d');
 
 let curSrc = 'sample', camStream = null, camRunning = false, rafId = null, wasWebcamRunning = false;
-let curSampleIdx = 0, tuningUnlocked = false, activeStep = 4;
+let curSampleIdx = 0, tuningUnlocked = false, activeStep = 5;
 
 const STEP_LABELS = [
   '1. Blur',
@@ -643,8 +643,39 @@ const STEP_DESCS = [
   'Gaussian blur reduces noise and small details. High σ = smoother edges.',
   'Sobel filters detect intensity changes. Shows raw edge strength.',
   'Non-Maximum Suppression thins edges to 1-pixel width.',
-  'Double thresholding identifies strong (white) and weak (blue) edges.'
+  'Double thresholding identifies strong (white) and weak (blue) edges.',
+  'Done! Now move on to hyperparameter tuning!'
 ];
+
+function setStepNote() {
+  const note = document.getElementById('p2-note');
+  if (note) note.textContent = STEP_DESCS[activeStep] || '';
+}
+
+function buildSharedStepBar() {
+  const bar = document.getElementById('sharedStepBar');
+  bar.innerHTML = '';
+
+  STEP_LABELS.forEach((label, i) => {
+    const btn = document.createElement('button');
+    btn.className = 'step-pill' + (i === activeStep ? ' on' : '');
+    btn.textContent = label;
+
+    btn.onclick = () => {
+      activeStep = i;
+      document.querySelectorAll('.step-pill').forEach((b, idx) => {
+        b.classList.toggle('on', idx === i);
+      });
+
+      setStepNote();
+      p3update();
+    };
+
+    bar.appendChild(btn);
+  });
+
+  setStepNote();
+}
 
 function buildSharedStepBar() {
   const bar = document.getElementById('sharedStepBar');
@@ -655,8 +686,13 @@ function buildSharedStepBar() {
     btn.textContent = label;
     btn.onclick = () => {
       activeStep = i;
-      document.querySelectorAll('.step-pill').forEach((b, idx) => b.classList.toggle('on', idx === i));
-      document.getElementById('p2-note').textContent = STEP_DESCS[i];
+      document.querySelectorAll('.step-pill').forEach((b, idx) => {
+        b.classList.toggle('on', idx === i);
+      });
+
+      const note = document.getElementById('p2-note');
+      if (note) note.textContent = STEP_DESCS[i];
+
       p3update();
     };
     bar.appendChild(btn);
@@ -771,9 +807,13 @@ function quizUpdate() {
   if (qOut) qOut.getContext('2d').drawImage(p3outCv, 0, 0, qOut.width, qOut.height);
   const score = computeQuizScore(result);
   updateQuizMatchUI(score);
-  if (score >= 88) {
-    const sp = document.getElementById('successPopup');
-    if (sp && sp.style.display === 'none') showQuizPass();
+
+  if (score >= 88 && !window.quizSolved) {
+    window.quizSolved = true;
+
+    setTimeout(() => {
+      showQuizPass();
+    }, 300);
   }
 }
 
