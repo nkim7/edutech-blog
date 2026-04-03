@@ -279,77 +279,80 @@
     </div>
   </div>
 
-  <div class="pipeline-steps">
-    <div class="pipeline-step">
-      <div class="pipeline-step-num" style="--accent-local:#10b981">01</div>
-      <div class="pipeline-step-name">Gaussian blur</div>
-      <div class="pipeline-step-desc">Remove noise before differentiation — otherwise the derivative fires on every sensor spike</div>
-    </div>
-    <div class="pipeline-arrow">→</div>
-    <div class="pipeline-step">
-      <div class="pipeline-step-num" style="--accent-local:#3b82f6">02</div>
-      <div class="pipeline-step-name">Sobel gradient</div>
-      <div class="pipeline-step-desc">Compute intensity change magnitude |∇I| and direction θ at every pixel</div>
-    </div>
-    <div class="pipeline-arrow">→</div>
-    <div class="pipeline-step">
-      <div class="pipeline-step-num" style="--accent-local:#f59e0b">03</div>
-      <div class="pipeline-step-name">NMS — thinning</div>
-      <div class="pipeline-step-desc">Keep only the sharpest peak along gradient direction; collapse ridges to single-pixel lines</div>
-    </div>
-    <div class="pipeline-arrow">→</div>
-    <div class="pipeline-step">
-      <div class="pipeline-step-num" style="--accent-local:#ef4444">04</div>
-      <div class="pipeline-step-name">Hysteresis</div>
-      <div class="pipeline-step-desc">Strong edges survive; weak edges survive only if connected to a strong neighbour</div>
-    </div>
-  </div>
-
-  <p class="part-sub-intro">Choose an image source and step through each stage to see what every operation contributes.</p>
-
-  <div class="src-cards" id="srcTabs">
-    <button class="src-card on" data-src="sample" onclick="setSrc('sample')">
-      <span class="src-card-icon">🖼</span>
-      <span class="src-card-title">Sample images</span>
-      <span class="src-card-sub">Choose a preset scene</span>
-    </button>
-    <button class="src-card" data-src="upload" onclick="setSrc('upload')">
-      <span class="src-card-icon">⬆️</span>
-      <span class="src-card-title">Upload your own</span>
-      <span class="src-card-sub">Try any photo from your device</span>
-    </button>
-    <button class="src-card" data-src="cam" onclick="setSrc('cam')">
-      <span class="src-card-icon">📷</span>
-      <span class="src-card-title">Live webcam</span>
-      <span class="src-card-sub">See Canny detect edges in real time</span>
-    </button>
-  </div>
-
-  <div id="src-sample">
-    <div class="pills" id="spills"></div>
-  </div>
-  <div id="src-upload" style="display:none">
-    <div class="upload-zone" onclick="document.getElementById('fin').click()">
-      <div class="upload-icon">+</div>
-      <div class="upload-title">Click to upload your image</div>
-      <div class="upload-sub">Any photo works — faces, nature, buildings, textures.<br>See how Canny responds to edges in <em>your</em> images.</div>
-      <input type="file" id="fin" accept="image/*" style="display:none" onchange="loadFile(this)">
-    </div>
-  </div>
-  <div id="src-cam" style="display:none">
-    <div class="cam-panel">
-      <div class="cam-intro">
-        <p class="cam-intro-text">Point your camera at anything — hands, a book, your face, a scene outside. Canny will detect edges live as you move.</p>
+  <!-- Pipeline-only panel: slides away when entering tuning view -->
+  <div class="pipeline-only-panel" id="pipelineOnlyPanel">
+    <div class="pipeline-steps">
+      <div class="pipeline-step">
+        <div class="pipeline-step-num" style="--accent-local:#10b981">01</div>
+        <div class="pipeline-step-name">Gaussian blur</div>
+        <div class="pipeline-step-desc">Remove noise before differentiation — otherwise the derivative fires on every sensor spike</div>
       </div>
-      <div class="cam-controls-row">
-        <button class="cam-btn-large" id="cbtn" onclick="toggleCam()">
-          <span class="cam-btn-icon">▶</span> Start camera
-        </button>
-        <span class="cam-status" id="cstat"></span>
+      <div class="pipeline-arrow">→</div>
+      <div class="pipeline-step">
+        <div class="pipeline-step-num" style="--accent-local:#3b82f6">02</div>
+        <div class="pipeline-step-name">Sobel gradient</div>
+        <div class="pipeline-step-desc">Compute intensity change magnitude |∇I| and direction θ at every pixel</div>
+      </div>
+      <div class="pipeline-arrow">→</div>
+      <div class="pipeline-step">
+        <div class="pipeline-step-num" style="--accent-local:#f59e0b">03</div>
+        <div class="pipeline-step-name">NMS — thinning</div>
+        <div class="pipeline-step-desc">Keep only the sharpest peak along gradient direction; collapse ridges to single-pixel lines</div>
+      </div>
+      <div class="pipeline-arrow">→</div>
+      <div class="pipeline-step">
+        <div class="pipeline-step-num" style="--accent-local:#ef4444">04</div>
+        <div class="pipeline-step-name">Hysteresis</div>
+        <div class="pipeline-step-desc">Strong edges survive; weak edges survive only if connected to a strong neighbour</div>
       </div>
     </div>
-    <video id="vid" autoplay muted playsinline style="display:none;width:0;height:0"></video>
-  </div>
+
+    <p class="part-sub-intro">Choose an image source and step through each stage to see what every operation contributes.</p>
+
+    <div class="src-cards" id="srcTabs">
+      <button class="src-card on" data-src="sample" onclick="setSrc('sample')">
+        <span class="src-card-icon">🖼</span>
+        <span class="src-card-title">Sample images</span>
+        <span class="src-card-sub">Choose a preset scene</span>
+      </button>
+      <button class="src-card" data-src="upload" onclick="setSrc('upload')">
+        <span class="src-card-icon">⬆️</span>
+        <span class="src-card-title">Upload your own</span>
+        <span class="src-card-sub">Try any photo from your device</span>
+      </button>
+      <button class="src-card" data-src="cam" onclick="setSrc('cam')">
+        <span class="src-card-icon">📷</span>
+        <span class="src-card-title">Live webcam</span>
+        <span class="src-card-sub">See Canny detect edges in real time</span>
+      </button>
+    </div>
+
+    <div id="src-sample">
+      <div class="pills" id="spills"></div>
+    </div>
+    <div id="src-upload" style="display:none">
+      <div class="upload-zone" onclick="document.getElementById('fin').click()">
+        <div class="upload-icon">+</div>
+        <div class="upload-title">Click to upload your image</div>
+        <div class="upload-sub">Any photo works — faces, nature, buildings, textures.<br>See how Canny responds to edges in <em>your</em> images.</div>
+        <input type="file" id="fin" accept="image/*" style="display:none" onchange="loadFile(this)">
+      </div>
+    </div>
+    <div id="src-cam" style="display:none">
+      <div class="cam-panel">
+        <div class="cam-intro">
+          <p class="cam-intro-text">Point your camera at anything — hands, a book, your face, a scene outside. Canny will detect edges live as you move.</p>
+        </div>
+        <div class="cam-controls-row">
+          <button class="cam-btn-large" id="cbtn" onclick="toggleCam()">
+            <span class="cam-btn-icon">▶</span> Start camera
+          </button>
+          <span class="cam-status" id="cstat"></span>
+        </div>
+      </div>
+      <video id="vid" autoplay muted playsinline style="display:none;width:0;height:0"></video>
+    </div>
+  </div><!-- /pipeline-only-panel -->
 
   <!-- Shared step bar — drives both pipeline and tuning views -->
   <div class="step-bar" id="sharedStepBar"></div>

@@ -696,6 +696,9 @@ function drawPortrait2() {
 
 function syncAll() {
   p3inctx.drawImage(cin, 0, 0, p3inCv.width, p3inCv.height);
+  // Recompute gold standard when lizard is loaded
+  if (curSrc === 'sample' && curSampleIdx === 0) computeGoldStandard();
+  else goldStandard = null;
   if (_cannySlideIdx === 0) runP2();
   else p3update();
 }
@@ -713,7 +716,7 @@ function buildSamplePills() {
     const p = document.createElement('button');
     p.className = 'pill' + (i === 0 ? ' on' : '');
     p.textContent = s.label;
-    p.onclick = () => { document.querySelectorAll('#spills .pill').forEach(x=>x.classList.remove('on')); p.classList.add('on'); s.fn(); };
+    p.onclick = () => { document.querySelectorAll('#spills .pill').forEach(x=>x.classList.remove('on')); p.classList.add('on'); curSampleIdx = i; s.fn(); };
     c.appendChild(p);
   });
 }
@@ -724,7 +727,7 @@ const P2STEPS = [
   { id:'gradient',  label:'2 · Gradient',  note:'The intensity gradient of the previous image. The edges of the image have been handled by replicating.' },
   { id:'nms',       label:'3 · NMS',       note:'Non-maximum suppression applied to the previous image.' },
   { id:'threshold', label:'4 · Threshold', note:'Double thresholding applied to the previous image. Weak pixels are those with a gradient value between 0.1 and 0.3. Strong pixels have a gradient value greater than 0.3.' },
-  { id:'all',       label:'Full Canny',    note:'Hysteresis applied to the previous image.' }
+  { id:'all',       label:'Full Canny',    note:'The complete Canny result: blur + gradient + NMS + hysteresis applied in sequence.' }
 ];
 
 const P3STEPS = [
@@ -765,9 +768,6 @@ function setP2Step(id) {
 function setP3Step(id) {
   curP3Step = id;
   document.querySelectorAll('#sharedStepBar .step-pill').forEach((p,i) => p.classList.toggle('on', P3STEPS[i].id === id));
-  const cfg = P3STEPS.find(s => s.id === id);
-  document.getElementById('p3thr-wrap').style.display = cfg.showThr ? 'block' : 'none';
-  document.getElementById('p3presets').style.display = cfg.showThr ? 'block' : 'none';
   p3update();
 }
 
@@ -933,6 +933,18 @@ function p3update() {
       ? `Full Canny  (σ=${sigma}, T_hi=${Math.round(thi*100)}%, T_lo=${Math.round(thi*tloR*100)}%)`
       : (P3STEPS.find(s=>s.id===curP3Step)?.label.replace(/^\d+ · /, '') || 'Output');
   }
+  // Quiz score (only on Full Canny step with lizard active)
+  if (curP3Step === 'all' && isQuizActive()) {
+    const w2 = p3inCv.width, h2 = p3inCv.height;
+    const g2 = getGray(p3inctx.getImageData(0,0,w2,h2), w2, h2);
+    const b2 = gaussBlur(g2, w2, h2, sigma);
+    const { mag: mag2, dir: dir2, maxMag: maxMag2 } = computeSobel(b2, w2, h2);
+    const nms2 = applyNMS(mag2, dir2, w2, h2);
+    const userMask = runHysteresis(nms2, w2, h2, maxMag2, thi, tloR);
+    updateQuizUI(computeQuizScore(userMask), sigma, thi, tloR);
+  } else {
+    updateQuizUI(null, sigma, thi, tloR);
+  }
 }
 
 function p3preset(s,th,tl) {
@@ -1005,6 +1017,10 @@ function cannySlide(idx) {
   const btn  = document.getElementById('slideNavBigBtn');
   const lbl  = document.getElementById('slideNavLabel');
   const arrow = document.getElementById('slideNavArrow');
+  // Show/hide pipeline-only panel
+  const panel = document.getElementById('pipelineOnlyPanel');
+  if (panel) panel.classList.toggle('hidden', idx === 1);
+
   if (idx === 0) {
     if (lbl)   lbl.textContent   = 'Hyperparameter Tuning';
     if (arrow) arrow.textContent = '→';
@@ -1023,20 +1039,144 @@ function cannySlide(idx) {
     if (lbl)   lbl.textContent   = 'Back to Pipeline';
     if (arrow) arrow.textContent = '←';
     if (btn)   btn.classList.add('is-back');
-    // Sync step and show/hide tuning controls
-    curP3Step = curP2Step;
+    // Force Full Canny step on entering tuning
+    curP3Step = 'all';
     document.querySelectorAll('#sharedStepBar .step-pill').forEach((p,i) =>
       p.classList.toggle('on', P3STEPS[i].id === curP3Step));
-    const cfg3 = P3STEPS.find(s => s.id === curP3Step);
-    if (cfg3) {
-      document.getElementById('p3thr-wrap').style.display = cfg3.showThr ? 'block' : 'none';
-      document.getElementById('p3presets').style.display  = cfg3.showThr ? 'block' : 'none';
+    // First visit: set challenge starting params
+    if (!_quizStarted) {
+      _quizStarted = true;
+      document.getElementById('p3sigma').value = QUIZ_START.sigma;
+      document.getElementById('p3thi').value   = QUIZ_START.thi;
+      document.getElementById('p3tlo').value   = QUIZ_START.tlo;
     }
     p3update();
   }
 }
 function cannySlideToggle() {
   cannySlide(_cannySlideIdx === 0 ? 1 : 0);
+}
+
+/* ──────────────────────────────────────────
+   QUIZ — Lizard Challenge
+────────────────────────────────────────── */
+let goldStandard = null;     // binary edge mask at optimal params
+let _quizStarted  = false;   // first-visit flag to set challenge start sliders
+let curSampleIdx  = 0;       // which sample pill is active
+
+// Gold standard: σ=1, T_hi=28%, T_lo ratio=38%
+const QUIZ_GOLD = { sigma: 1, thi: 0.28, tloR: 0.38 };
+// Challenge starting values (intentionally bad)
+const QUIZ_START = { sigma: 4, thi: 60, tlo: 20 };
+
+function computeGoldStandard() {
+  const w = p3inCv.width, h = p3inCv.height;
+  const g = getGray(p3inctx.getImageData(0,0,w,h), w, h);
+  const b = gaussBlur(g, w, h, QUIZ_GOLD.sigma);
+  const { mag, dir, maxMag } = computeSobel(b, w, h);
+  const nms = applyNMS(mag, dir, w, h);
+  goldStandard = runHysteresis(nms, w, h, maxMag, QUIZ_GOLD.thi, QUIZ_GOLD.tloR);
+}
+
+function isQuizActive() {
+  return _cannySlideIdx === 1 && curSrc === 'sample' && curSampleIdx === 0;
+}
+
+function computeQuizScore(userEdgeMask) {
+  if (!goldStandard || !userEdgeMask) return null;
+  let inter = 0, union = 0;
+  for (let i = 0; i < goldStandard.length; i++) {
+    const g = goldStandard[i] > 0 ? 1 : 0;
+    const u = userEdgeMask[i] > 0 ? 1 : 0;
+    if (g && u) inter++;
+    if (g || u) union++;
+  }
+  return union === 0 ? 0 : Math.round(inter / union * 100);
+}
+
+function updateQuizUI(score, sigma, thi, tloR) {
+  const numEl  = document.getElementById('quizScoreNum');
+  const ring   = document.getElementById('quizRingFill');
+  const hintsEl = document.getElementById('quizHints');
+  const panel  = document.getElementById('quizPanel');
+  if (!panel) return;
+
+  // Show / hide based on whether quiz is active
+  const active = isQuizActive() && curP3Step === 'all';
+  panel.classList.toggle('quiz-inactive', !active);
+
+  if (active && score !== null) {
+    if (numEl)  numEl.textContent = score;
+    if (ring) {
+      const C = 238.76; // 2π × 38
+      ring.style.strokeDashoffset = C * (1 - score / 100);
+      ring.style.stroke = score >= 88 ? '#10b981'
+                        : score >= 68 ? '#2563eb'
+                        : score >= 44 ? '#f59e0b'
+                        : '#ef4444';
+    }
+    // Hints
+    const hints = [];
+    if (sigma === 0)  hints.push('⚠️ No blur — sensor noise fires as edges everywhere. Raise σ.');
+    else if (sigma >= 4) hints.push('⚠️ Heavy blur — fine scale detail is merging. Try σ ≤ 2.');
+    const thiPct = Math.round(thi * 100);
+    if (thiPct > 55)  hints.push('⚠️ T_hi too strict — real edges are being missed. Try below 40%.');
+    else if (thiPct < 12) hints.push('⚠️ T_hi too low — noise qualifies as strong edges.');
+    const tloPct = Math.round(tloR * 100);
+    if (tloPct > 75)  hints.push('⚠️ Narrow hysteresis band — few weak edges recovered.');
+    if (score >= 88)  hints.push('🌟 Excellent! Near-optimal parameters found.');
+    else if (score >= 68) hints.push('✓ Good — main edges clean. Keep fine-tuning.');
+    else if (score >= 44) hints.push('Getting closer. Compare noise vs. missed outlines.');
+    if (hintsEl) hintsEl.innerHTML = hints.map(h => `<div class="quiz-hint">${h}</div>`).join('');
+  } else if (!active) {
+    if (numEl)  numEl.textContent = '—';
+    if (ring)   ring.style.strokeDashoffset = 238.76;
+    if (hintsEl) {
+      hintsEl.innerHTML = curP3Step !== 'all'
+        ? '<div class="quiz-hint quiz-hint--info">Switch to Full Canny step to see your score.</div>'
+        : curSampleIdx !== 0
+          ? '<div class="quiz-hint quiz-hint--info">Return to the Lizard image to start the challenge.</div>'
+          : '';
+    }
+  }
+}
+
+function revealOptimalParams() {
+  const startSigma = +document.getElementById('p3sigma').value;
+  const startThi   = +document.getElementById('p3thi').value;
+  const startTlo   = +document.getElementById('p3tlo').value;
+  const targetSigma = QUIZ_GOLD.sigma;
+  const targetThi   = Math.round(QUIZ_GOLD.thi * 100);
+  const targetTlo   = Math.round(QUIZ_GOLD.tloR * 100);
+  const dur = 1400, t0 = performance.now();
+  const ease = t => t < .5 ? 2*t*t : -1+(4-2*t)*t;
+  const frame = now => {
+    const t = Math.min(1, (now - t0) / dur);
+    const e = ease(t);
+    document.getElementById('p3sigma').value = Math.round(startSigma + (targetSigma - startSigma) * e);
+    document.getElementById('p3thi').value   = Math.round(startThi   + (targetThi   - startThi)   * e);
+    document.getElementById('p3tlo').value   = Math.round(startTlo   + (targetTlo   - startTlo)   * e);
+    p3update();
+    if (t < 1) requestAnimationFrame(frame);
+    else showRevealExplanation();
+  };
+  requestAnimationFrame(frame);
+  const btn = document.getElementById('quizRevealBtn');
+  if (btn) btn.style.display = 'none';
+}
+
+function showRevealExplanation() {
+  const el = document.getElementById('quizExplanation');
+  if (!el) return;
+  el.style.display = 'block';
+  el.innerHTML = `
+    <div class="quiz-reveal-block">
+      <div class="quiz-reveal-title">Why these values?</div>
+      <p><strong>σ = 1</strong> removes camera sensor noise while preserving the lizard's fine scale edges — which would blur away at σ ≥ 3.</p>
+      <p><strong>T_hi = 28%</strong> captures the strong body contour and main outline without being so strict it misses faint scale boundaries.</p>
+      <p><strong>T_lo ratio = 38%</strong> sets the hysteresis band wide enough that scale edges connected to the body outline are recovered, without dragging in unconnected noise.</p>
+    </div>
+  `;
 }
 
 /* ──────────────────────────────────────────
