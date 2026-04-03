@@ -227,8 +227,10 @@ sub, sup { font-size: 0.8em; }
   font-size: 0.95rem;
   line-height: 1.7;
   color: var(--muted);
-  margin: 0 0 1.5rem;
-  max-width: 640px;
+  margin: 0 auto 1.5rem;
+  max-width: var(--max-w);
+  display: block;
+  text-align: left;
 }
 
 /* ════════════════════════════════════════
@@ -529,6 +531,7 @@ sub, sup { font-size: 0.8em; }
   display: flex; align-items: center;
   gap: 1rem; margin-bottom: 1rem; flex-wrap: wrap;
   max-width: var(--max-w);
+  margin-left: auto; margin-right: auto;
 }
 .inline-range {
   appearance: none; height: 4px;
@@ -554,7 +557,7 @@ sub, sup { font-size: 0.8em; }
 .clear-btn:hover { border-color: var(--ink); color: var(--ink); }
 
 /* ════════════════════════════════════════
-   FILTER MAIN LAYOUT (2-column)
+   FILTER PILLS ROW + WORKSPACE
 ════════════════════════════════════════ */
 .filter-pills-row {
   margin-bottom: 1rem;
@@ -563,28 +566,12 @@ sub, sup { font-size: 0.8em; }
 }
 .filter-pills { display: flex; flex-direction: row; flex-wrap: wrap; gap: .4rem; }
 
-.filter-main-layout {
-  display: grid;
-  grid-template-columns: auto 1fr;
-  gap: 1.75rem;
-  align-items: start;
-  max-width: var(--max-w);
-  margin: 0 auto;
-}
-.filter-canvas-panel {
-  display: flex; flex-direction: column; gap: .75rem;
-}
-.draw-controls--compact {
-  margin-bottom: 0;
-}
-
-/* ════════════════════════════════════════
-   FILTER WORKSPACE (canvas pair)
-════════════════════════════════════════ */
 .filter-workspace {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: .75rem; align-items: start;
+  gap: 1.5rem; align-items: start; margin-bottom: 2rem;
+  max-width: var(--max-w);
+  margin-left: auto; margin-right: auto;
 }
 .draw-canvas {
   width: 100%; display: block; cursor: crosshair;
@@ -622,8 +609,9 @@ sub, sup { font-size: 0.8em; }
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--rad);
-  padding: 1.25rem;
-  min-width: 0; /* allow grid shrink */
+  padding: 1.5rem; margin-top: .5rem;
+  max-width: var(--max-w);
+  margin-left: auto; margin-right: auto;
 }
 .filter-card-eq-row { margin-bottom: 1.25rem; }
 .filter-eq {
@@ -997,8 +985,7 @@ sub, sup { font-size: 0.8em; }
 @media (max-width: 900px) {
   .concept-cards { grid-template-columns: 1fr 1fr; }
   .eq-legend { grid-template-columns: 1fr 1fr; }
-  .filter-main-layout { grid-template-columns: 1fr; }
-  .filter-workspace { grid-template-columns: 1fr 1fr; }
+  .filter-workspace { grid-template-columns: 1fr; }
   .filter-pills { flex-direction: row; flex-wrap: wrap; }
   .filter-card-body { grid-template-columns: 1fr; }
   .pipeline-steps { flex-direction: column; }
@@ -1021,3 +1008,32 @@ sub, sup { font-size: 0.8em; }
   .footer { flex-direction: column; }
   .src-cards { grid-template-columns: 1fr; }
 }
+
+/* ════════════════════════════════════════
+   CENTRED CONTAINERS, LEFT-ALIGNED TEXT
+   All section content blocks are centered
+   within the page column; text inside is
+   always left-aligned (browser default).
+════════════════════════════════════════ */
+.part-header,
+.concept-cards,
+.general-eq-block,
+.part-sub-intro,
+.draw-controls,
+.pipeline-steps,
+.upload-zone,
+.cam-panel,
+.pills,
+.bridge-inner,
+.src-bar,
+.step-note,
+.tuning-controls,
+.param-cards,
+.canny-canvases {
+  margin-left: auto;
+  margin-right: auto;
+  text-align: left;
+}
+
+/* eq-display stays centred — it's a math expression */
+.eq-display { text-align: center; }

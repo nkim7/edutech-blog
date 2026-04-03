@@ -211,60 +211,54 @@
     </div>
   </div>
 
-  <p class="part-sub-intro">Select a filter, draw on the left canvas — the kernel, equation, and worked example update live on the right.</p>
+  <p class="part-sub-intro">Draw on the canvas below, then select a filter. The equation, kernel, description, and a worked example update instantly.</p>
 
-  <!-- Filter pills -->
+  <div class="draw-controls">
+    <label class="ctrl-label">Brush size</label>
+    <input type="range" id="bsz" min="2" max="28" value="10" step="1" oninput="BS=+this.value;document.getElementById('bv').textContent=this.value" class="inline-range">
+    <span class="range-val" id="bv">10</span>
+    <button class="clear-btn" onclick="clearDraw()">Clear ↺</button>
+  </div>
+
   <div class="filter-pills-row">
     <div class="filter-pills" id="fpills"></div>
   </div>
 
-  <!-- 2-column: canvases left · explanation right -->
-  <div class="filter-main-layout">
-
-    <!-- LEFT: draw controls + canvases -->
-    <div class="filter-canvas-panel">
-      <div class="draw-controls draw-controls--compact">
-        <label class="ctrl-label">Brush</label>
-        <input type="range" id="bsz" min="2" max="28" value="10" step="1"
-               oninput="BS=+this.value;document.getElementById('bv').textContent=this.value" class="inline-range">
-        <span class="range-val" id="bv">10</span>
-        <button class="clear-btn" onclick="clearDraw()">Clear ↺</button>
+  <div class="filter-workspace">
+    <div class="draw-area">
+      <div class="canvas-label-row">
+        <span class="canvas-label">Draw here</span>
       </div>
-      <div class="filter-workspace">
-        <div class="draw-area">
-          <div class="canvas-label-row"><span class="canvas-label">Draw here</span></div>
-          <canvas id="dc" width="260" height="200" class="draw-canvas"></canvas>
-        </div>
-        <div class="output-area">
-          <div class="canvas-label-row"><span class="canvas-label" id="p1-outlabel">Output</span></div>
-          <canvas id="oc" width="260" height="200" class="output-canvas"></canvas>
-        </div>
+      <canvas id="dc" width="280" height="210" class="draw-canvas"></canvas>
+    </div>
+    <div class="output-area">
+      <div class="canvas-label-row">
+        <span class="canvas-label" id="p1-outlabel">Output</span>
+      </div>
+      <canvas id="oc" width="280" height="210" class="output-canvas"></canvas>
+    </div>
+  </div>
+
+  <div class="filter-card" id="filterCard">
+    <div class="filter-card-eq-row">
+      <div class="comp-section-label">Equation</div>
+      <div class="filter-eq" id="feq"></div>
+    </div>
+    <div class="filter-card-body">
+      <div class="filter-kernel-col">
+        <div class="comp-section-label">Kernel</div>
+        <div id="kgrid" class="kernel-display-grid"></div>
+        <div class="kernel-op-label" id="klabel"></div>
+      </div>
+      <div class="filter-desc-col">
+        <div class="comp-section-label">What this kernel computes</div>
+        <div id="fdesc" class="filter-desc-text"></div>
+      </div>
+      <div class="filter-example-col">
+        <div class="comp-section-label">Example calculation</div>
+        <div id="calcExample" class="calc-example-wrap"></div>
       </div>
     </div>
-
-    <!-- RIGHT: explanation card -->
-    <div class="filter-card" id="filterCard">
-      <div class="filter-card-eq-row">
-        <div class="comp-section-label">Equation</div>
-        <div class="filter-eq" id="feq"></div>
-      </div>
-      <div class="filter-card-body">
-        <div class="filter-kernel-col">
-          <div class="comp-section-label">Kernel</div>
-          <div id="kgrid" class="kernel-display-grid"></div>
-          <div class="kernel-op-label" id="klabel"></div>
-        </div>
-        <div class="filter-desc-col">
-          <div class="comp-section-label">What this kernel computes</div>
-          <div id="fdesc" class="filter-desc-text"></div>
-        </div>
-        <div class="filter-example-col">
-          <div class="comp-section-label">Example calculation</div>
-          <div id="calcExample" class="calc-example-wrap"></div>
-        </div>
-      </div>
-    </div>
-
   </div>
 </section>
 
