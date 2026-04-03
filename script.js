@@ -621,18 +621,22 @@ dc.addEventListener('touchmove', e=>{ e.preventDefault(); if(!drawing)return; co
 dc.addEventListener('touchend', () => drawing=false);
 
 /* ──────────────────────────────────────────
-   PARTS 2 + 3: CANNY PIPELINE
+   PARTS 2 + 3: CANNY PIPELINE + PLAYGROUND
 ────────────────────────────────────────── */
 const cin = document.getElementById('cin'), cout = document.getElementById('cout');
 const cinctx = cin.getContext('2d'), coutctx = cout.getContext('2d');
 const p3inCv = document.getElementById('p3in'), p3outCv = document.getElementById('p3out');
 const p3inctx = p3inCv.getContext('2d'), p3outctx = p3outCv.getContext('2d');
+const tunIn = document.getElementById('tunIn'), tunOut = document.getElementById('tunOut');
+const tunInCtx = tunIn.getContext('2d'), tunOutCtx = tunOut.getContext('2d');
 
 let curSrc = 'sample', camStream = null, camRunning = false, rafId = null;
-let curP2Step = 'all', curP3Step = 'all';
+let curSampleIdx = 0;
+let tuningUnlocked = false;
+let pipeStep = 0;
 
-const IMG_SRC_IMG = './lizard.jpg';
-const IMG_SRC_PORTRAIT = './portrait.jpg';
+const IMG_SRC_IMG          = './lizard.jpg';
+const IMG_SRC_PORTRAIT     = './portrait.jpg';
 const IMG_SRC_ARCHITECTURE = './architecture.jpg';
 
 function loadImgToAll(src) {
@@ -641,433 +645,315 @@ function loadImgToAll(src) {
   img.onload = () => {
     cinctx.drawImage(img, 0, 0, cin.width, cin.height);
     p3inctx.drawImage(img, 0, 0, p3inCv.width, p3inCv.height);
+    tunInCtx.drawImage(img, 0, 0, tunIn.width, tunIn.height);
     syncAll();
   };
   img.src = src;
 }
 
-function drawFace() {
-  const c=cinctx, w=cin.width, h=cin.height;
-  c.fillStyle='#111a22'; c.fillRect(0,0,w,h);
-  c.fillStyle='#c8aa80'; c.beginPath(); c.ellipse(w*.5,h*.42,55,68,0,0,Math.PI*2); c.fill();
-  c.fillStyle='#8a6825'; c.beginPath(); c.ellipse(w*.5,h*.23,56,32,0,0,Math.PI); c.fill();
-  c.fillStyle='#111';
-  c.beginPath(); c.ellipse(w*.37,h*.38,9,6,-.2,0,Math.PI*2); c.fill();
-  c.beginPath(); c.ellipse(w*.63,h*.38,9,6,.2,0,Math.PI*2); c.fill();
-  c.strokeStyle='#7a5018'; c.lineWidth=2; c.beginPath(); c.arc(w*.5,h*.52,13,.1,Math.PI-.1); c.stroke();
-  c.fillStyle='#2a3a6a'; c.fillRect(w*.15,h*.65,w*.7,h*.38);
-  syncAll();
-}
-
-function drawTexture() {
-  const c=cinctx, w=cin.width, h=cin.height;
-  c.fillStyle='#181208'; c.fillRect(0,0,w,h);
-  for (let i=0; i<70; i++) {
-    c.fillStyle=`hsl(${100+Math.random()*80},${30+Math.random()*40}%,${15+Math.random()*55}%)`;
-    c.beginPath(); c.arc(Math.random()*w, Math.random()*h, 4+Math.random()*14, 0, Math.PI*2); c.fill();
-  }
-  c.strokeStyle='rgba(180,180,100,.3)'; c.lineWidth=1;
-  for (let i=0; i<10; i++) { c.beginPath(); c.moveTo(Math.random()*w,0); c.lineTo(Math.random()*w,h); c.stroke(); }
-  syncAll();
-}
-
-function drawArch() {
-  const c=cinctx, w=cin.width, h=cin.height;
-  c.fillStyle='#0a0a12'; c.fillRect(0,0,w,h);
-  c.strokeStyle='#8899aa'; c.lineWidth=1.5;
-  for (let i=0; i<7; i++) { const x=25+i*(w-50)/6; c.beginPath(); c.moveTo(x,h-20); c.lineTo(x,20); c.stroke(); }
-  c.strokeStyle='#aabb88'; c.lineWidth=2; c.beginPath(); c.arc(w/2,h-20,110,Math.PI,0); c.stroke();
-  c.strokeStyle='#aa8866'; c.lineWidth=1;
-  for (let r=40; r<180; r+=28) { c.beginPath(); c.arc(w/2,h/2,r,0,Math.PI*2); c.stroke(); }
-  syncAll();
-}
-
-function drawPortrait2() {
-  const c=cinctx, w=cin.width, h=cin.height;
-  c.fillStyle='#080810'; c.fillRect(0,0,w,h);
-  // Buildings silhouette
-  [[20,h,40,160],[70,h,50,120],[130,h,60,100],[200,h,45,140],[255,h,35,90],[295,h,45,130]].forEach(([x,bot,wi,hi])=>{
-    c.fillStyle=`hsl(220,${10+Math.random()*15}%,${15+Math.random()*10}%)`;
-    c.fillRect(x,bot-hi,wi,hi);
-    for(let wy=bot-hi+10;wy<bot-10;wy+=15){for(let wx=x+5;wx<x+wi-5;wx+=12){if(Math.random()>.4){c.fillStyle='rgba(255,220,80,.6)';c.fillRect(wx,wy,6,8);}}}
-  });
-  syncAll();
-}
-
 function syncAll() {
   p3inctx.drawImage(cin, 0, 0, p3inCv.width, p3inCv.height);
-  // Recompute gold standard when lizard is loaded
+  tunInCtx.drawImage(cin, 0, 0, tunIn.width, tunIn.height);
   if (curSrc === 'sample' && curSampleIdx === 0) computeGoldStandard();
   else goldStandard = null;
-  if (_cannySlideIdx === 0) runP2();
-  else p3update();
+  runPipeStep();
+  if (tuningUnlocked) p3update();
 }
 
 const SAMPLES = [
-  { label: 'Image', fn: () => loadImgToAll(IMG_SRC_IMG) },
-  { label: 'Portrait', fn: () => loadImgToAll(IMG_SRC_PORTRAIT) },
+  { label: 'Lizard',       fn: () => loadImgToAll(IMG_SRC_IMG) },
+  { label: 'Portrait',     fn: () => loadImgToAll(IMG_SRC_PORTRAIT) },
   { label: 'Architecture', fn: () => loadImgToAll(IMG_SRC_ARCHITECTURE) },
 ];
 
 function buildSamplePills() {
   const c = document.getElementById('spills');
+  if (!c) return;
   c.innerHTML = '';
   SAMPLES.forEach((s, i) => {
     const p = document.createElement('button');
     p.className = 'pill' + (i === 0 ? ' on' : '');
     p.textContent = s.label;
-    p.onclick = () => { document.querySelectorAll('#spills .pill').forEach(x=>x.classList.remove('on')); p.classList.add('on'); curSampleIdx = i; s.fn(); };
+    p.onclick = () => {
+      document.querySelectorAll('#spills .pill').forEach(x => x.classList.remove('on'));
+      p.classList.add('on');
+      curSampleIdx = i;
+      s.fn();
+    };
     c.appendChild(p);
   });
 }
 
-// STEP DEFINITIONS
-const P2STEPS = [
-  { id:'blur',      label:'1 · Blur',      note:'Image has been reduced to grayscale, and a 5×5 Gaussian filter with σ=1.4 has been applied.' },
-  { id:'gradient',  label:'2 · Gradient',  note:'The intensity gradient of the previous image. The edges of the image have been handled by replicating.' },
-  { id:'nms',       label:'3 · NMS',       note:'Non-maximum suppression applied to the previous image.' },
-  { id:'threshold', label:'4 · Threshold', note:'Double thresholding applied to the previous image. Weak pixels are those with a gradient value between 0.1 and 0.3. Strong pixels have a gradient value greater than 0.3.' },
-  { id:'all',       label:'Full Canny',    note:'The complete Canny result: blur + gradient + NMS + hysteresis applied in sequence.' }
+/* ── Pipeline stepper ── */
+const PIPE_STEPS = [
+  { id: 'original',   label: 'The original image',
+    desc: 'The source image loaded as-is. This is what the Canny algorithm starts with.' },
+  { id: 'blur',       label: 'Gaussian Blur (σ=1.4)',
+    desc: 'Image has been reduced to grayscale, and a 5×5 Gaussian filter with σ=1.4 has been applied.' },
+  { id: 'gradient',   label: 'Sobel Gradient',
+    desc: 'The intensity gradient of the previous image. The edges of the image have been handled by replicating.' },
+  { id: 'nms',        label: 'Non-Maximum Suppression',
+    desc: 'Non-maximum suppression applied to the previous image.' },
+  { id: 'threshold',  label: 'Double Thresholding',
+    desc: 'Double thresholding applied to the previous image. Weak pixels are those with a gradient value between 0.1 and 0.3. Strong pixels have a gradient value greater than 0.3.' },
+  { id: 'hysteresis', label: 'Hysteresis (Full Canny)',
+    desc: 'Hysteresis applied to the previous image. Strong edges survive; weak edges survive only if connected to a strong neighbour.' },
 ];
 
-const P3STEPS = [
-  { id:'blur', label:'1 · Blur', showThr:false, note:'Only σ is active. Set σ=0 to skip blur — watch noise become edges. Increase to see detail merge. The tradeoff is fundamental: more smoothing = less noise = fewer false edges, but also less spatial precision.' },
-  { id:'gradient', label:'2 · Gradient', showThr:false, note:'The gradient map directly reflects σ. More blur → smoother gradients → weaker noise response. Watch how high-frequency speckle fades while genuine edges remain bright.' },
-  { id:'nms', label:'3 · NMS', showThr:false, note:'NMS is deterministic — no parameters here. But σ still matters: noisy gradients produce unstable direction estimates, breaking edges into fragments. Good σ = cleaner, more continuous thinned lines.' },
-  { id:'threshold', label:'4 · Threshold', showThr:true, note:'T_hi and T_lo now become meaningful. Raise T_hi to keep only dominant edges. Lower it to accept faint ones. The blue band between T_lo and T_hi feeds hysteresis. Try extreme values to see both failure modes.' },
-  { id:'all', label:'Full Canny', showThr:true, note:'All three hyperparameters live simultaneously. Try the presets: "σ=0 no blur" shows noise exploding; "High T_hi" shows only dominant contours; "T_lo ≈ T_hi" removes hysteresis — no weak edges ever recover.' }
-];
-
-function buildSharedStepBar() {
-  const bar = document.getElementById('sharedStepBar');
-  if (!bar) return;
-  bar.innerHTML = '';
-  P2STEPS.forEach(s => {
-    const p = document.createElement('button');
-    p.className = 'step-pill' + (s.id === curP2Step ? ' on' : '');
-    p.textContent = s.label;
-    p.onclick = () => {
-      if (_cannySlideIdx === 0) setP2Step(s.id);
-      else setP3Step(s.id);
-    };
-    bar.appendChild(p);
+function buildPipeDots() {
+  const c = document.getElementById('pipeDots');
+  if (!c) return;
+  c.innerHTML = '';
+  PIPE_STEPS.forEach((s, i) => {
+    const d = document.createElement('button');
+    d.className = 'pipe-dot' + (i === 0 ? ' on' : '');
+    d.title = s.label;
+    d.onclick = () => { pipeStep = i; renderPipeStep(); };
+    c.appendChild(d);
   });
 }
 
-function setP2Step(id) {
-  curP2Step = id;
-  document.querySelectorAll('#sharedStepBar .step-pill').forEach((p,i) => p.classList.toggle('on', P2STEPS[i].id === id));
-  const cfg = P2STEPS.find(s => s.id === id);
-  const lbl = document.getElementById('shared-outlabel');
-  if (lbl) lbl.textContent = id === 'all' ? 'Full Canny' : cfg.label.replace(/^\d+ · /, '');
-  const note = document.getElementById('p2-note');
-  if (note) note.textContent = cfg.note;
-  runP2();
+function renderPipeStep() {
+  const step = PIPE_STEPS[pipeStep];
+  const labelEl = document.getElementById('pipeOutLabel');
+  const noteEl  = document.getElementById('pipeStageNote');
+  if (labelEl) labelEl.textContent = step.label;
+  if (noteEl)  noteEl.textContent  = step.desc;
+  document.querySelectorAll('.pipe-dot').forEach((d, i) =>
+    d.classList.toggle('on', i === pipeStep));
+  const prevBtn = document.getElementById('pipePrevBtn');
+  const nextBtn = document.getElementById('pipeNextBtn');
+  if (prevBtn) prevBtn.disabled = pipeStep === 0;
+  if (nextBtn) nextBtn.disabled = pipeStep === PIPE_STEPS.length - 1;
+  runPipeStep();
 }
 
-function setP3Step(id) {
-  curP3Step = id;
-  document.querySelectorAll('#sharedStepBar .step-pill').forEach((p,i) => p.classList.toggle('on', P3STEPS[i].id === id));
-  p3update();
+function runPipeStep() {
+  const w = cin.width, h = cin.height;
+  const sigma = 1.4, thi = 0.30, tloR = 0.10 / 0.30;
+  if (pipeStep === 0) { coutctx.drawImage(cin, 0, 0); return; }
+  const g = getGray(cinctx.getImageData(0, 0, w, h), w, h);
+  const b = gaussBlur(g, w, h, sigma);
+  if (pipeStep === 1) { putGrayF(coutctx, b, w, h, 255); return; }
+  const { mag, dir, maxMag } = computeSobel(b, w, h);
+  if (pipeStep === 2) { putGrayF(coutctx, mag, w, h, maxMag); return; }
+  const nms = applyNMS(mag, dir, w, h);
+  if (pipeStep === 3) { putGrayF(coutctx, nms, w, h, maxMag); return; }
+  if (pipeStep === 4) { putThr(coutctx, nms, w, h, maxMag, thi, tloR); return; }
+  putBin(coutctx, runHysteresis(nms, w, h, maxMag, thi, tloR), w, h);
 }
 
-// ── CANNY MATH ──
+function pipeStepNav(dir) {
+  pipeStep = Math.max(0, Math.min(PIPE_STEPS.length - 1, pipeStep + dir));
+  renderPipeStep();
+}
+
+/* ── Canny math ── */
 function getGray(imgd, w, h) {
-  const g = new Float32Array(w*h);
-  for (let i=0; i<w*h; i++) {
-    const d = imgd.data;
-    g[i] = d[i*4]*0.299 + d[i*4+1]*0.587 + d[i*4+2]*0.114;
+  const g = new Float32Array(w * h);
+  for (let i = 0; i < w * h; i++) {
+    g[i] = imgd.data[i*4]*0.299 + imgd.data[i*4+1]*0.587 + imgd.data[i*4+2]*0.114;
   }
   return g;
 }
 
 function gaussBlur(g, w, h, sigma) {
   if (sigma === 0) return new Float32Array(g);
-  const r = Math.max(1, Math.ceil(sigma*3)), size = 2*r+1;
+  const r = Math.max(1, Math.ceil(sigma * 3)), size = 2 * r + 1;
   const k = new Float32Array(size); let sum = 0;
-  for (let i=0; i<size; i++) { k[i] = Math.exp(-((i-r)**2) / (2*sigma*sigma)); sum += k[i]; }
-  for (let i=0; i<size; i++) k[i] /= sum;
-  const tmp = new Float32Array(w*h), out = new Float32Array(w*h);
-  for (let y=0; y<h; y++) for (let x=0; x<w; x++) {
-    let s=0; for (let d=-r; d<=r; d++) { const nx=Math.max(0,Math.min(w-1,x+d)); s+=g[y*w+nx]*k[d+r]; }
-    tmp[y*w+x]=s;
+  for (let i = 0; i < size; i++) { k[i] = Math.exp(-((i-r)**2) / (2*sigma*sigma)); sum += k[i]; }
+  for (let i = 0; i < size; i++) k[i] /= sum;
+  const tmp = new Float32Array(w * h), out = new Float32Array(w * h);
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+    let s = 0;
+    for (let d = -r; d <= r; d++) { const nx = Math.max(0, Math.min(w-1, x+d)); s += g[y*w+nx] * k[d+r]; }
+    tmp[y*w+x] = s;
   }
-  for (let y=0; y<h; y++) for (let x=0; x<w; x++) {
-    let s=0; for (let d=-r; d<=r; d++) { const ny=Math.max(0,Math.min(h-1,y+d)); s+=tmp[ny*w+x]*k[d+r]; }
-    out[y*w+x]=s;
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+    let s = 0;
+    for (let d = -r; d <= r; d++) { const ny = Math.max(0, Math.min(h-1, y+d)); s += tmp[ny*w+x] * k[d+r]; }
+    out[y*w+x] = s;
   }
   return out;
 }
 
 function computeSobel(b, w, h) {
-  // Edge-replicated padding: clamp coordinates instead of leaving borders at 0
   const get = (y, x) => b[Math.max(0,Math.min(h-1,y))*w + Math.max(0,Math.min(w-1,x))];
-  const mag=new Float32Array(w*h), dir=new Float32Array(w*h);
-  const kx=[-1,0,1,-2,0,2,-1,0,1], ky=[-1,-2,-1,0,0,0,1,2,1]; let mx=0;
-  for (let y=0; y<h; y++) for (let x=0; x<w; x++) {
-    let gx=0, gy=0;
-    for (let j=-1; j<=1; j++) for (let i=-1; i<=1; i++) {
-      const v = get(y+j, x+i), ki=(j+1)*3+(i+1);
-      gx+=v*kx[ki]; gy+=v*ky[ki];
+  const mag = new Float32Array(w*h), dir = new Float32Array(w*h);
+  const kx = [-1,0,1,-2,0,2,-1,0,1], ky = [-1,-2,-1,0,0,0,1,2,1]; let mx = 0;
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+    let gx = 0, gy = 0;
+    for (let j = -1; j <= 1; j++) for (let i = -1; i <= 1; i++) {
+      const v = get(y+j, x+i), ki = (j+1)*3+(i+1);
+      gx += v * kx[ki]; gy += v * ky[ki];
     }
-    const m=Math.sqrt(gx*gx+gy*gy);
-    mag[y*w+x]=m; if(m>mx)mx=m; dir[y*w+x]=Math.atan2(gy,gx);
+    const m = Math.sqrt(gx*gx + gy*gy);
+    mag[y*w+x] = m; if (m > mx) mx = m; dir[y*w+x] = Math.atan2(gy, gx);
   }
-  return {mag, dir, maxMag:mx||1};
+  return { mag, dir, maxMag: mx || 1 };
 }
 
 function applyNMS(mag, dir, w, h) {
-  // Sub-pixel interpolated NMS: compare along continuous gradient direction
   const out = new Float32Array(w*h);
   const interp = (fx, fy) => {
-    const x0=Math.floor(fx), y0=Math.floor(fy), x1=x0+1, y1=y0+1;
-    if(x0<0||x1>=w||y0<0||y1>=h) return 0;
-    const dx=fx-x0, dy=fy-y0;
+    const x0 = Math.floor(fx), y0 = Math.floor(fy), x1 = x0+1, y1 = y0+1;
+    if (x0 < 0 || x1 >= w || y0 < 0 || y1 >= h) return 0;
+    const dx = fx-x0, dy = fy-y0;
     return mag[y0*w+x0]*(1-dx)*(1-dy) + mag[y0*w+x1]*dx*(1-dy)
          + mag[y1*w+x0]*(1-dx)*dy     + mag[y1*w+x1]*dx*dy;
   };
-  for (let y=1; y<h-1; y++) for (let x=1; x<w-1; x++) {
-    const c=Math.cos(dir[y*w+x]), s=Math.sin(dir[y*w+x]);
-    const p=interp(x+c, y+s), q=interp(x-c, y-s);
-    out[y*w+x] = (mag[y*w+x]>=p && mag[y*w+x]>=q) ? mag[y*w+x] : 0;
+  for (let y = 1; y < h-1; y++) for (let x = 1; x < w-1; x++) {
+    const c = Math.cos(dir[y*w+x]), s = Math.sin(dir[y*w+x]);
+    const p = interp(x+c, y+s), q = interp(x-c, y-s);
+    out[y*w+x] = (mag[y*w+x] >= p && mag[y*w+x] >= q) ? mag[y*w+x] : 0;
   }
   return out;
 }
 
 function runHysteresis(nms, w, h, maxMag, thi, tloR) {
-  const hi=maxMag*thi, lo=maxMag*thi*tloR;
-  const s=new Uint8Array(w*h);
-  for(let i=0;i<w*h;i++){if(nms[i]>=hi)s[i]=2;else if(nms[i]>=lo)s[i]=1;}
-  const stack=[]; for(let i=0;i<w*h;i++)if(s[i]===2)stack.push(i);
-  while(stack.length){
-    const idx=stack.pop(),y=Math.floor(idx/w),x=idx%w;
-    for(let dy=-1;dy<=1;dy++)for(let dx=-1;dx<=1;dx++){
-      if(!dy&&!dx)continue;
-      const ny=y+dy,nx=x+dx;
-      if(ny<0||ny>=h||nx<0||nx>=w)continue;
-      const ni=ny*w+nx; if(s[ni]===1){s[ni]=2;stack.push(ni);}
+  const hi = maxMag*thi, lo = maxMag*thi*tloR;
+  const s = new Uint8Array(w*h);
+  for (let i = 0; i < w*h; i++) { if (nms[i] >= hi) s[i]=2; else if (nms[i] >= lo) s[i]=1; }
+  const stack = []; for (let i = 0; i < w*h; i++) if (s[i]===2) stack.push(i);
+  while (stack.length) {
+    const idx = stack.pop(), y = Math.floor(idx/w), x = idx%w;
+    for (let dy=-1; dy<=1; dy++) for (let dx=-1; dx<=1; dx++) {
+      if (!dy && !dx) continue;
+      const ny=y+dy, nx=x+dx;
+      if (ny<0||ny>=h||nx<0||nx>=w) continue;
+      const ni=ny*w+nx; if (s[ni]===1) { s[ni]=2; stack.push(ni); }
     }
   }
-  const out=new Uint8Array(w*h);
-  for(let i=0;i<w*h;i++)out[i]=s[i]===2?255:0;
+  const out = new Uint8Array(w*h);
+  for (let i = 0; i < w*h; i++) out[i] = s[i]===2 ? 255 : 0;
   return out;
 }
 
-function putGrayF(ctx,d,w,h,mx){
-  const id=ctx.createImageData(w,h); const m=mx||Math.max(...d)||1;
-  for(let i=0;i<w*h;i++){const v=Math.min(255,Math.round(d[i]/m*255));id.data[i*4]=id.data[i*4+1]=id.data[i*4+2]=v;id.data[i*4+3]=255;}
-  ctx.putImageData(id,0,0);
+function putGrayF(ctx, d, w, h, mx) {
+  const id = ctx.createImageData(w, h); const m = mx || Math.max(...d) || 1;
+  for (let i = 0; i < w*h; i++) {
+    const v = Math.min(255, Math.round(d[i]/m*255));
+    id.data[i*4]=id.data[i*4+1]=id.data[i*4+2]=v; id.data[i*4+3]=255;
+  }
+  ctx.putImageData(id, 0, 0);
 }
-function putBin(ctx,d,w,h){
-  const id=ctx.createImageData(w,h);
-  for(let i=0;i<w*h;i++){id.data[i*4]=id.data[i*4+1]=id.data[i*4+2]=d[i];id.data[i*4+3]=255;}
-  ctx.putImageData(id,0,0);
+function putBin(ctx, d, w, h) {
+  const id = ctx.createImageData(w, h);
+  for (let i = 0; i < w*h; i++) {
+    id.data[i*4]=id.data[i*4+1]=id.data[i*4+2]=d[i]; id.data[i*4+3]=255;
+  }
+  ctx.putImageData(id, 0, 0);
 }
-function putThr(ctx,nms,w,h,maxMag,thi,tloR){
-  const hi=maxMag*thi,lo=maxMag*thi*tloR;
-  const id=ctx.createImageData(w,h);
-  for(let i=0;i<w*h;i++){
-    if(nms[i]>=hi){id.data[i*4]=255;id.data[i*4+1]=255;id.data[i*4+2]=255;}
-    else if(nms[i]>=lo){id.data[i*4]=59;id.data[i*4+1]=139;id.data[i*4+2]=212;}
-    else{id.data[i*4]=id.data[i*4+1]=id.data[i*4+2]=0;}
+function putThr(ctx, nms, w, h, maxMag, thi, tloR) {
+  const hi=maxMag*thi, lo=maxMag*thi*tloR;
+  const id = ctx.createImageData(w, h);
+  for (let i = 0; i < w*h; i++) {
+    if (nms[i]>=hi)      { id.data[i*4]=255; id.data[i*4+1]=255; id.data[i*4+2]=255; }
+    else if (nms[i]>=lo) { id.data[i*4]=59;  id.data[i*4+1]=139; id.data[i*4+2]=212; }
+    else                 { id.data[i*4]=id.data[i*4+1]=id.data[i*4+2]=0; }
     id.data[i*4+3]=255;
   }
-  ctx.putImageData(id,0,0);
+  ctx.putImageData(id, 0, 0);
 }
 
-function runP2() {
-  // σ=1.4 (5×5 Gaussian), thi=0.30, tlo=0.10 — matching standard Canny parameters
-  const w=cin.width, h=cin.height, sigma=1.4, thi=0.30, tlo=0.10;
-  const tloR = tlo / thi; // ratio for runHysteresis / putThr
-  const g=getGray(cinctx.getImageData(0,0,w,h),w,h);
-  const b=gaussBlur(g,w,h,sigma);
-  if(curP2Step==='blur'){putGrayF(coutctx,b,w,h,255);return;}
-  const {mag,dir,maxMag}=computeSobel(b,w,h);
-  if(curP2Step==='gradient'){putGrayF(coutctx,mag,w,h,maxMag);return;}
-  const nms=applyNMS(mag,dir,w,h);
-  if(curP2Step==='nms'){putGrayF(coutctx,nms,w,h,maxMag);return;}
-  if(curP2Step==='threshold'){putThr(coutctx,nms,w,h,maxMag,thi,tloR);return;}
-  putBin(coutctx,runHysteresis(nms,w,h,maxMag,thi,tloR),w,h);
-}
-
+/* ── Tuning playground ── */
 function p3update() {
-  const sigma=+document.getElementById('p3sigma').value;
-  const thi=+document.getElementById('p3thi').value/100;
-  const tloR=+document.getElementById('p3tlo').value/100;
-  document.getElementById('p3sv').textContent = sigma;
-  document.getElementById('p3thv').textContent = Math.round(thi*100) + '%';
-  document.getElementById('p3tlv').textContent = Math.round(tloR*100) + '%';
-  // Render into the shared output canvas (coutctx)
-  const w=p3inCv.width,h=p3inCv.height;
-  const g=getGray(p3inctx.getImageData(0,0,w,h),w,h);
-  const b=gaussBlur(g,w,h,sigma);
-  if(curP3Step==='blur'){putGrayF(coutctx,b,w,h,255);}
-  else {
-    const {mag,dir,maxMag}=computeSobel(b,w,h);
-    if(curP3Step==='gradient'){putGrayF(coutctx,mag,w,h,maxMag);}
-    else {
-      const nms=applyNMS(mag,dir,w,h);
-      if(curP3Step==='nms'){putGrayF(coutctx,nms,w,h,maxMag);}
-      else if(curP3Step==='threshold'){putThr(coutctx,nms,w,h,maxMag,thi,tloR);}
-      else{putBin(coutctx,runHysteresis(nms,w,h,maxMag,thi,tloR),w,h);}
-    }
-  }
-  const cfg = P3STEPS.find(s=>s.id===curP3Step);
-  const notes = [cfg.note];
-  if(sigma===0) notes.push('σ=0: no blur → noise creates false edges everywhere.');
-  else if(sigma>=4) notes.push(`σ=${sigma}: heavy blur → fine boundaries begin to merge.`);
-  if(cfg.showThr) {
-    const thiPct=Math.round(thi*100);
-    if(thiPct>=50) notes.push(`T_hi=${thiPct}%: strict — only dominant gradients survive as strong edges.`);
-    else if(thiPct<=10) notes.push(`T_hi=${thiPct}%: permissive — risk of noise qualifying as strong edges.`);
-    const tloPct=Math.round(tloR*100);
-    if(tloPct>=70) notes.push(`T_lo=${tloPct}%: narrow hysteresis band, few weak edges recovered.`);
-    else if(tloPct<=20) notes.push(`T_lo=${tloPct}%: wide band, many weak edges recovered.`);
-  }
-  const p3note = document.getElementById('p3-note');
-  if (p3note) p3note.textContent = notes.join('  ·  ');
-  // Update shared output label
-  const lbl = document.getElementById('shared-outlabel');
-  if (lbl) {
-    lbl.textContent = curP3Step === 'all'
-      ? `Full Canny  (σ=${sigma}, T_hi=${Math.round(thi*100)}%, T_lo=${Math.round(thi*tloR*100)}%)`
-      : (P3STEPS.find(s=>s.id===curP3Step)?.label.replace(/^\d+ · /, '') || 'Output');
-  }
-  // Quiz score (only on Full Canny step with lizard active)
-  if (curP3Step === 'all' && isQuizActive()) {
-    const w2 = p3inCv.width, h2 = p3inCv.height;
-    const g2 = getGray(p3inctx.getImageData(0,0,w2,h2), w2, h2);
-    const b2 = gaussBlur(g2, w2, h2, sigma);
-    const { mag: mag2, dir: dir2, maxMag: maxMag2 } = computeSobel(b2, w2, h2);
-    const nms2 = applyNMS(mag2, dir2, w2, h2);
-    const userMask = runHysteresis(nms2, w2, h2, maxMag2, thi, tloR);
-    updateQuizUI(computeQuizScore(userMask), sigma, thi, tloR);
-  } else {
-    updateQuizUI(null, sigma, thi, tloR);
-  }
+  const sigma = +document.getElementById('p3sigma').value;
+  const thi   = +document.getElementById('p3thi').value / 100;
+  const tloR  = +document.getElementById('p3tlo').value / 100;
+  document.getElementById('p3sv').textContent  = sigma;
+  document.getElementById('p3thv').textContent = Math.round(thi * 100) + '%';
+  document.getElementById('p3tlv').textContent = Math.round(tloR * 100) + '%';
+  const w = p3inCv.width, h = p3inCv.height;
+  const g = getGray(p3inctx.getImageData(0,0,w,h), w, h);
+  const b = gaussBlur(g, w, h, sigma);
+  const { mag, dir, maxMag } = computeSobel(b, w, h);
+  const nms = applyNMS(mag, dir, w, h);
+  putBin(p3outctx, runHysteresis(nms, w, h, maxMag, thi, tloR), w, h);
+  tunOutCtx.drawImage(p3outCv, 0, 0, tunOut.width, tunOut.height);
+  const lbl = document.getElementById('tunOutLabel');
+  if (lbl) lbl.textContent = `\u03c3=${sigma}  T\u1d34i=${Math.round(thi*100)}%  T\u2097\u2092=${Math.round(thi*tloR*100)}%`;
 }
 
-function p3preset(s,th,tl) {
-  document.getElementById('p3sigma').value=s;
-  document.getElementById('p3thi').value=th;
-  document.getElementById('p3tlo').value=tl;
-  p3update();
-}
-
+/* ── Source selector ── */
 function setSrc(s) {
   curSrc = s;
-  ['sample','upload','cam'].forEach(id=>{
-    document.getElementById('src-'+id).style.display = id===s ? '' : 'none';
+  ['sample','upload','cam'].forEach(id => {
+    const el = document.getElementById('src-'+id);
+    if (el) el.style.display = id === s ? '' : 'none';
   });
   document.querySelectorAll('.src-card').forEach(t => t.classList.toggle('on', t.dataset.src === s));
-  if(s!=='cam' && camRunning) stopCam();
-  if(s==='sample') SAMPLES[0].fn();
+  if (s !== 'cam' && camRunning) stopCam();
+  if (s === 'sample') SAMPLES[curSampleIdx].fn();
 }
 
 function loadFile(input) {
-  const f = input.files[0]; if(!f) return;
+  const f = input.files[0]; if (!f) return;
   const img = new Image();
   img.onload = () => {
-    cinctx.drawImage(img,0,0,cin.width,cin.height);
-    p3inctx.drawImage(img,0,0,p3inCv.width,p3inCv.height);
+    cinctx.drawImage(img, 0, 0, cin.width, cin.height);
+    p3inctx.drawImage(img, 0, 0, p3inCv.width, p3inCv.height);
+    tunInCtx.drawImage(img, 0, 0, tunIn.width, tunIn.height);
     syncAll(); URL.revokeObjectURL(img.src);
   };
   img.src = URL.createObjectURL(f);
 }
 
 async function toggleCam() {
-  if(camRunning) { stopCam(); return; }
+  if (camRunning) { stopCam(); return; }
   try {
-    camStream = await navigator.mediaDevices.getUserMedia({video:{width:340,height:255}});
+    camStream = await navigator.mediaDevices.getUserMedia({ video: { width: 340, height: 255 } });
     const v = document.getElementById('vid');
-    v.srcObject = camStream; v.style.display='block';
+    v.srcObject = camStream; v.style.display = 'block';
     v.onloadedmetadata = () => {
-      camRunning=true;
-      document.getElementById('cbtn').innerHTML='<span class="cam-btn-icon">⏹</span> Stop camera';
-      document.getElementById('cstat').textContent='● Live';
+      camRunning = true;
+      document.getElementById('cbtn').innerHTML = '<span class="cam-btn-icon">&#9209;</span> Stop camera';
+      document.getElementById('cstat').textContent = '&#9679; Live';
       camLoop();
     };
-  } catch(e) { document.getElementById('cstat').textContent='Camera unavailable'; }
+  } catch(e) { document.getElementById('cstat').textContent = 'Camera unavailable'; }
 }
 function stopCam() {
-  camRunning=false;
-  if(camStream){camStream.getTracks().forEach(t=>t.stop());camStream=null;}
-  if(rafId){cancelAnimationFrame(rafId);rafId=null;}
-  document.getElementById('vid').style.display='none';
-  document.getElementById('cbtn').innerHTML='<span class="cam-btn-icon">▶</span> Start camera';
-  document.getElementById('cstat').textContent='';
+  camRunning = false;
+  if (camStream) { camStream.getTracks().forEach(t => t.stop()); camStream = null; }
+  if (rafId) { cancelAnimationFrame(rafId); rafId = null; }
+  document.getElementById('vid').style.display = 'none';
+  document.getElementById('cbtn').innerHTML = '<span class="cam-btn-icon">&#9654;</span> Start camera';
+  document.getElementById('cstat').textContent = '';
 }
 function camLoop() {
-  if(!camRunning)return;
-  cinctx.drawImage(document.getElementById('vid'),0,0,cin.width,cin.height);
-  p3inctx.drawImage(document.getElementById('vid'),0,0,p3inCv.width,p3inCv.height);
-  if (_cannySlideIdx === 0) runP2(); else p3update();
-  rafId=requestAnimationFrame(camLoop);
+  if (!camRunning) return;
+  const v = document.getElementById('vid');
+  cinctx.drawImage(v, 0, 0, cin.width, cin.height);
+  p3inctx.drawImage(v, 0, 0, p3inCv.width, p3inCv.height);
+  tunInCtx.drawImage(v, 0, 0, tunIn.width, tunIn.height);
+  if (tuningUnlocked) p3update();
+  rafId = requestAnimationFrame(camLoop);
 }
 
-/* ──────────────────────────────────────────
-   CANNY SLIDE NAVIGATION (parts 02 ↔ 03)
-────────────────────────────────────────── */
-let _cannySlideIdx = 0;
-function cannySlide(idx) {
-  _cannySlideIdx = idx;
-  const track = document.getElementById('cannyTrack');
-  if (track) track.style.transform = `translateX(${-idx * 100}%)`;
-  // Update big toggle button appearance
-  const btn  = document.getElementById('slideNavBigBtn');
-  const lbl  = document.getElementById('slideNavLabel');
-  const arrow = document.getElementById('slideNavArrow');
-  // Show/hide pipeline-only panel
-  const panel = document.getElementById('pipelineOnlyPanel');
-  if (panel) panel.classList.toggle('hidden', idx === 1);
-
-  if (idx === 0) {
-    if (lbl)   lbl.textContent   = 'Hyperparameter Tuning';
-    if (arrow) arrow.textContent = '→';
-    if (btn)   btn.classList.remove('is-back');
-    // Sync step and render pipeline view
-    curP2Step = curP3Step;
-    document.querySelectorAll('#sharedStepBar .step-pill').forEach((p,i) =>
-      p.classList.toggle('on', P2STEPS[i].id === curP2Step));
-    const cfg2 = P2STEPS.find(s => s.id === curP2Step);
-    const note = document.getElementById('p2-note');
-    if (note && cfg2) note.textContent = cfg2.note;
-    const outlbl = document.getElementById('shared-outlabel');
-    if (outlbl && cfg2) outlbl.textContent = curP2Step === 'all' ? 'Full Canny' : cfg2.label.replace(/^\d+ · /, '');
-    runP2();
-  } else {
-    if (lbl)   lbl.textContent   = 'Back to Pipeline';
-    if (arrow) arrow.textContent = '←';
-    if (btn)   btn.classList.add('is-back');
-    // Force Full Canny step on entering tuning
-    curP3Step = 'all';
-    document.querySelectorAll('#sharedStepBar .step-pill').forEach((p,i) =>
-      p.classList.toggle('on', P3STEPS[i].id === curP3Step));
-    // First visit: set challenge starting params
-    if (!_quizStarted) {
-      _quizStarted = true;
-      document.getElementById('p3sigma').value = QUIZ_START.sigma;
-      document.getElementById('p3thi').value   = QUIZ_START.thi;
-      document.getElementById('p3tlo').value   = QUIZ_START.tlo;
-    }
-    p3update();
-  }
+/* ── Popup: tuning intro ── */
+function openTuningPopup() {
+  const overlay = document.getElementById('tuningPopup');
+  if (!overlay) return;
+  overlay.style.display = 'flex';
+  showPopupPage(1);
 }
-function cannySlideToggle() {
-  cannySlide(_cannySlideIdx === 0 ? 1 : 0);
+function closeTuningPopup() {
+  document.getElementById('tuningPopup').style.display = 'none';
+}
+function popupOverlayClick(e) {
+  if (e.target === document.getElementById('tuningPopup')) closeTuningPopup();
+}
+function showPopupPage(n) {
+  document.getElementById('popupPage1').style.display = n === 1 ? '' : 'none';
+  document.getElementById('popupPage2').style.display = n === 2 ? '' : 'none';
+  if (n === 2) initQuizPage();
 }
 
-/* ──────────────────────────────────────────
-   QUIZ — Lizard Challenge
-────────────────────────────────────────── */
-let goldStandard = null;     // binary edge mask at optimal params
-let _quizStarted  = false;   // first-visit flag to set challenge start sliders
-let curSampleIdx  = 0;       // which sample pill is active
-
-// Gold standard: σ=1, T_hi=28%, T_lo ratio=38%
-const QUIZ_GOLD = { sigma: 1, thi: 0.28, tloR: 0.38 };
-// Challenge starting values (intentionally bad)
-const QUIZ_START = { sigma: 4, thi: 60, tlo: 20 };
+/* ── Quiz ── */
+let goldStandard = null;
+const QUIZ_GOLD  = { sigma: 1, thi: 0.28, tloR: 0.38 };
+const QUIZ_START = { sigma: 4, thi: 60,   tlo: 20    };
 
 function computeGoldStandard() {
   const w = p3inCv.width, h = p3inCv.height;
@@ -1078,105 +964,133 @@ function computeGoldStandard() {
   goldStandard = runHysteresis(nms, w, h, maxMag, QUIZ_GOLD.thi, QUIZ_GOLD.tloR);
 }
 
-function isQuizActive() {
-  return _cannySlideIdx === 1 && curSrc === 'sample' && curSampleIdx === 0;
-}
-
-function computeQuizScore(userEdgeMask) {
-  if (!goldStandard || !userEdgeMask) return null;
+function computeQuizScore(userMask) {
+  if (!goldStandard || !userMask) return 0;
   let inter = 0, union = 0;
   for (let i = 0; i < goldStandard.length; i++) {
     const g = goldStandard[i] > 0 ? 1 : 0;
-    const u = userEdgeMask[i] > 0 ? 1 : 0;
+    const u = userMask[i]    > 0 ? 1 : 0;
     if (g && u) inter++;
     if (g || u) union++;
   }
   return union === 0 ? 0 : Math.round(inter / union * 100);
 }
 
-function updateQuizUI(score, sigma, thi, tloR) {
-  const numEl  = document.getElementById('quizScoreNum');
-  const ring   = document.getElementById('quizRingFill');
-  const hintsEl = document.getElementById('quizHints');
-  const panel  = document.getElementById('quizPanel');
-  if (!panel) return;
+function initQuizPage() {
+  // Reset success banner
+  const suc = document.getElementById('quizSuccess');
+  if (suc) suc.style.display = 'none';
+  // Load lizard, compute gold, then start quiz
+  const img = new Image();
+  img.onload = () => {
+    p3inctx.drawImage(img, 0, 0, p3inCv.width, p3inCv.height);
+    computeGoldStandard();
+    renderQuizTarget();
+    document.getElementById('quizSigma').value = QUIZ_START.sigma;
+    document.getElementById('quizThi').value   = QUIZ_START.thi;
+    document.getElementById('quizTlo').value   = QUIZ_START.tlo;
+    // Reset match bar
+    const fill  = document.getElementById('quizMatchFill');
+    const label = document.getElementById('quizMatchLabel');
+    if (fill)  { fill.style.width = '0%'; fill.style.background = 'var(--border-med)'; }
+    if (label) { label.textContent = 'Adjust the sliders to begin'; label.style.color = 'var(--muted)'; }
+    quizUpdate();
+  };
+  img.src = IMG_SRC_IMG;
+}
 
-  // Show / hide based on whether quiz is active
-  const active = isQuizActive() && curP3Step === 'all';
-  panel.classList.toggle('quiz-inactive', !active);
+function renderQuizTarget() {
+  const tgt = document.getElementById('quizTarget');
+  if (!tgt || !goldStandard) return;
+  const w = p3inCv.width, h = p3inCv.height;
+  putBin(p3outctx, goldStandard, w, h);
+  tgt.getContext('2d').drawImage(p3outCv, 0, 0, tgt.width, tgt.height);
+}
 
-  if (active && score !== null) {
-    if (numEl)  numEl.textContent = score;
-    if (ring) {
-      const C = 238.76; // 2π × 38
-      ring.style.strokeDashoffset = C * (1 - score / 100);
-      ring.style.stroke = score >= 88 ? '#10b981'
-                        : score >= 68 ? '#2563eb'
-                        : score >= 44 ? '#f59e0b'
-                        : '#ef4444';
-    }
-    // Hints
-    const hints = [];
-    if (sigma === 0)  hints.push('⚠️ No blur — sensor noise fires as edges everywhere. Raise σ.');
-    else if (sigma >= 4) hints.push('⚠️ Heavy blur — fine scale detail is merging. Try σ ≤ 2.');
-    const thiPct = Math.round(thi * 100);
-    if (thiPct > 55)  hints.push('⚠️ T_hi too strict — real edges are being missed. Try below 40%.');
-    else if (thiPct < 12) hints.push('⚠️ T_hi too low — noise qualifies as strong edges.');
-    const tloPct = Math.round(tloR * 100);
-    if (tloPct > 75)  hints.push('⚠️ Narrow hysteresis band — few weak edges recovered.');
-    if (score >= 88)  hints.push('🌟 Excellent! Near-optimal parameters found.');
-    else if (score >= 68) hints.push('✓ Good — main edges clean. Keep fine-tuning.');
-    else if (score >= 44) hints.push('Getting closer. Compare noise vs. missed outlines.');
-    if (hintsEl) hintsEl.innerHTML = hints.map(h => `<div class="quiz-hint">${h}</div>`).join('');
-  } else if (!active) {
-    if (numEl)  numEl.textContent = '—';
-    if (ring)   ring.style.strokeDashoffset = 238.76;
-    if (hintsEl) {
-      hintsEl.innerHTML = curP3Step !== 'all'
-        ? '<div class="quiz-hint quiz-hint--info">Switch to Full Canny step to see your score.</div>'
-        : curSampleIdx !== 0
-          ? '<div class="quiz-hint quiz-hint--info">Return to the Lizard image to start the challenge.</div>'
-          : '';
-    }
+function quizUpdate() {
+  const sigma = +document.getElementById('quizSigma').value;
+  const thi   = +document.getElementById('quizThi').value / 100;
+  const tloR  = +document.getElementById('quizTlo').value / 100;
+  document.getElementById('quizSigmaBadge').textContent = sigma;
+  document.getElementById('quizThiBadge').textContent   = Math.round(thi  * 100) + '%';
+  document.getElementById('quizTloBadge').textContent   = Math.round(tloR * 100) + '%';
+  const w = p3inCv.width, h = p3inCv.height;
+  const g = getGray(p3inctx.getImageData(0,0,w,h), w, h);
+  const b = gaussBlur(g, w, h, sigma);
+  const { mag, dir, maxMag } = computeSobel(b, w, h);
+  const nms = applyNMS(mag, dir, w, h);
+  const result = runHysteresis(nms, w, h, maxMag, thi, tloR);
+  putBin(p3outctx, result, w, h);
+  const qOut = document.getElementById('quizOut');
+  if (qOut) qOut.getContext('2d').drawImage(p3outCv, 0, 0, qOut.width, qOut.height);
+  const score = computeQuizScore(result);
+  updateQuizMatchUI(score);
+  if (score >= 88) {
+    const suc = document.getElementById('quizSuccess');
+    if (suc && suc.style.display === 'none') showQuizPass();
   }
 }
 
-function revealOptimalParams() {
-  const startSigma = +document.getElementById('p3sigma').value;
-  const startThi   = +document.getElementById('p3thi').value;
-  const startTlo   = +document.getElementById('p3tlo').value;
-  const targetSigma = QUIZ_GOLD.sigma;
-  const targetThi   = Math.round(QUIZ_GOLD.thi * 100);
-  const targetTlo   = Math.round(QUIZ_GOLD.tloR * 100);
-  const dur = 1400, t0 = performance.now();
-  const ease = t => t < .5 ? 2*t*t : -1+(4-2*t)*t;
-  const frame = now => {
-    const t = Math.min(1, (now - t0) / dur);
-    const e = ease(t);
-    document.getElementById('p3sigma').value = Math.round(startSigma + (targetSigma - startSigma) * e);
-    document.getElementById('p3thi').value   = Math.round(startThi   + (targetThi   - startThi)   * e);
-    document.getElementById('p3tlo').value   = Math.round(startTlo   + (targetTlo   - startTlo)   * e);
-    p3update();
-    if (t < 1) requestAnimationFrame(frame);
-    else showRevealExplanation();
-  };
-  requestAnimationFrame(frame);
-  const btn = document.getElementById('quizRevealBtn');
-  if (btn) btn.style.display = 'none';
+function updateQuizMatchUI(score) {
+  const fill  = document.getElementById('quizMatchFill');
+  const label = document.getElementById('quizMatchLabel');
+  if (!fill || !label) return;
+  fill.style.width = score + '%';
+  if (score >= 88) {
+    fill.style.background = 'var(--accent)';
+    label.textContent = 'Perfect match \u2014 scroll down!';
+    label.style.color = 'var(--accent)';
+  } else if (score >= 68) {
+    fill.style.background = '#3b82f6';
+    label.textContent = 'Very close \u2014 keep fine-tuning';
+    label.style.color = 'var(--ink)';
+  } else if (score >= 44) {
+    fill.style.background = '#93c5fd';
+    label.textContent = 'Getting closer...';
+    label.style.color = 'var(--muted2)';
+  } else {
+    fill.style.background = 'var(--border-med)';
+    label.textContent = 'Adjust the sliders to begin';
+    label.style.color = 'var(--muted)';
+  }
 }
 
-function showRevealExplanation() {
-  const el = document.getElementById('quizExplanation');
-  if (!el) return;
-  el.style.display = 'block';
-  el.innerHTML = `
-    <div class="quiz-reveal-block">
-      <div class="quiz-reveal-title">Why these values?</div>
-      <p><strong>σ = 1</strong> removes camera sensor noise while preserving the lizard's fine scale edges — which would blur away at σ ≥ 3.</p>
-      <p><strong>T_hi = 28%</strong> captures the strong body contour and main outline without being so strict it misses faint scale boundaries.</p>
-      <p><strong>T_lo ratio = 38%</strong> sets the hysteresis band wide enough that scale edges connected to the body outline are recovered, without dragging in unconnected noise.</p>
-    </div>
-  `;
+function showQuizPass() {
+  const s = document.getElementById('quizSuccess');
+  if (!s) return;
+  s.style.display = 'block';
+  setTimeout(() => s.scrollIntoView({ behavior: 'smooth', block: 'nearest' }), 80);
+}
+
+function enterTuning() {
+  closeTuningPopup();
+  tuningUnlocked = true;
+  buildSamplePills();
+  const pg = document.getElementById('tuningPlayground');
+  if (pg) {
+    pg.style.display = '';
+    setTimeout(() => {
+      pg.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      pg.classList.add('playground-highlight');
+      setTimeout(() => pg.classList.remove('playground-highlight'), 1200);
+    }, 300);
+  }
+  tunInCtx.drawImage(cin, 0, 0, tunIn.width, tunIn.height);
+  p3inctx.drawImage(cin, 0, 0, p3inCv.width, p3inCv.height);
+  p3update();
+}
+
+/* ── Help popup ── */
+function openHelpPopup() {
+  const hp = document.getElementById('helpPopup');
+  if (hp) hp.style.display = 'flex';
+}
+function closeHelpPopup() {
+  const hp = document.getElementById('helpPopup');
+  if (hp) hp.style.display = 'none';
+}
+function helpOverlayClick(e) {
+  if (e.target === document.getElementById('helpPopup')) closeHelpPopup();
 }
 
 /* ──────────────────────────────────────────
@@ -1185,8 +1099,7 @@ function showRevealExplanation() {
 buildFilterPills();
 selectFilter('sobel');
 clearDraw();
-buildSamplePills();
-buildSharedStepBar();
-setP2Step('all');
+buildPipeDots();
+renderPipeStep();
 rebuildAnim();
-SAMPLES[0].fn(); // Start with lizard image as default
+SAMPLES[0].fn(); // Load lizard on start
