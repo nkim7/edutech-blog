@@ -291,7 +291,10 @@ function updateCalcDisplay(pos) {
       sum += gv * kv;
     }
   }
-  const clamped = Math.round(Math.min(255, Math.max(0, sum + 128)));
+  // Edge/Sobel produces values in [-255,+255]; shift by +128 to place in display range.
+  // All other operations already produce values in [0,255] — no offset needed.
+  const offset = op === 'edge' ? 128 : 0;
+  const clamped = Math.round(Math.min(255, Math.max(0, sum + offset)));
   const raw = Math.round(sum * 100) / 100;
   const shown = terms.slice(0, 8).join(' + ') + (terms.length > 8 ? '\n  + …' : '');
   document.getElementById('animCalc').textContent = shown + '\n= ' + raw + (raw !== clamped ? ' → clamped → ' + clamped : '');
