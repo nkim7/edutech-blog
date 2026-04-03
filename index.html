@@ -269,186 +269,218 @@
   </div>
 </div>
 
-<!-- ═══════════════════════════════════════════════════ PART 2 -->
-<section class="part" id="part2">
-  <div class="part-header">
-    <div class="part-number">02</div>
-    <div class="part-header-text">
-      <h2 class="part-title">Canny edge <em>detection</em></h2>
-      <p class="part-intro">An edge is where pixel intensity changes rapidly. John Canny (1986) designed a four-step pipeline that finds these transitions reliably, even in noisy photographs. Each step uses the filter operations from Part 1.</p>
-    </div>
-  </div>
+<!-- ═══════════════════════════════ PARTS 2 + 3 COMBINED SLIDER ══ -->
+<div class="canny-slider-wrap">
+  <div class="canny-slides-track" id="cannyTrack">
 
-  <div class="pipeline-steps">
-    <div class="pipeline-step">
-      <div class="pipeline-step-num" style="--accent-local:#10b981">01</div>
-      <div class="pipeline-step-name">Gaussian blur</div>
-      <div class="pipeline-step-desc">Remove noise before differentiation — otherwise the derivative fires on every sensor spike</div>
-    </div>
-    <div class="pipeline-arrow">→</div>
-    <div class="pipeline-step">
-      <div class="pipeline-step-num" style="--accent-local:#3b82f6">02</div>
-      <div class="pipeline-step-name">Sobel gradient</div>
-      <div class="pipeline-step-desc">Compute intensity change magnitude |∇I| and direction θ at every pixel</div>
-    </div>
-    <div class="pipeline-arrow">→</div>
-    <div class="pipeline-step">
-      <div class="pipeline-step-num" style="--accent-local:#f59e0b">03</div>
-      <div class="pipeline-step-name">NMS — thinning</div>
-      <div class="pipeline-step-desc">Keep only the sharpest peak along gradient direction; collapse ridges to single-pixel lines</div>
-    </div>
-    <div class="pipeline-arrow">→</div>
-    <div class="pipeline-step">
-      <div class="pipeline-step-num" style="--accent-local:#ef4444">04</div>
-      <div class="pipeline-step-name">Hysteresis</div>
-      <div class="pipeline-step-desc">Strong edges survive; weak edges survive only if connected to a strong neighbour</div>
-    </div>
-  </div>
-
-  <p class="part-sub-intro">Choose an image source below and step through each stage to see what every operation contributes.</p>
-
-  <div class="src-cards" id="srcTabs">
-    <button class="src-card on" data-src="sample" onclick="setSrc('sample')">
-      <span class="src-card-icon">🖼</span>
-      <span class="src-card-title">Sample images</span>
-      <span class="src-card-sub">Choose a preset scene</span>
-    </button>
-    <button class="src-card" data-src="upload" onclick="setSrc('upload')">
-      <span class="src-card-icon">⬆️</span>
-      <span class="src-card-title">Upload your own</span>
-      <span class="src-card-sub">Try any photo from your device</span>
-    </button>
-    <button class="src-card" data-src="cam" onclick="setSrc('cam')">
-      <span class="src-card-icon">📷</span>
-      <span class="src-card-title">Live webcam</span>
-      <span class="src-card-sub">See Canny detect edges in real time</span>
-    </button>
-  </div>
-
-  <div id="src-sample">
-    <div class="pills" id="spills"></div>
-  </div>
-  <div id="src-upload" style="display:none">
-    <div class="upload-zone" onclick="document.getElementById('fin').click()">
-      <div class="upload-icon">+</div>
-      <div class="upload-title">Click to upload your image</div>
-      <div class="upload-sub">Any photo works — faces, nature, buildings, textures.<br>See how Canny responds to edges in <em>your</em> images.</div>
-      <input type="file" id="fin" accept="image/*" style="display:none" onchange="loadFile(this)">
-    </div>
-  </div>
-  <div id="src-cam" style="display:none">
-    <div class="cam-panel">
-      <div class="cam-intro">
-        <p class="cam-intro-text">Point your camera at anything — hands, a book, your face, a scene outside. Canny will detect edges live as you move.</p>
+    <!-- ── SLIDE 0: Part 2 — Canny Pipeline ── -->
+    <section class="canny-slide part" id="part2">
+      <div class="part-header">
+        <div class="part-number">02</div>
+        <div class="part-header-text">
+          <h2 class="part-title">Canny edge <em>detection</em></h2>
+          <p class="part-intro">An edge is where pixel intensity changes rapidly. John Canny (1986) designed a four-step pipeline that finds these transitions reliably, even in noisy photographs. Each step uses the filter operations from Part 1.</p>
+        </div>
       </div>
-      <div class="cam-controls-row">
-        <button class="cam-btn-large" id="cbtn" onclick="toggleCam()">
-          <span class="cam-btn-icon">▶</span> Start camera
+
+      <div class="pipeline-steps">
+        <div class="pipeline-step">
+          <div class="pipeline-step-num" style="--accent-local:#10b981">01</div>
+          <div class="pipeline-step-name">Gaussian blur</div>
+          <div class="pipeline-step-desc">Remove noise before differentiation — otherwise the derivative fires on every sensor spike</div>
+        </div>
+        <div class="pipeline-arrow">→</div>
+        <div class="pipeline-step">
+          <div class="pipeline-step-num" style="--accent-local:#3b82f6">02</div>
+          <div class="pipeline-step-name">Sobel gradient</div>
+          <div class="pipeline-step-desc">Compute intensity change magnitude |∇I| and direction θ at every pixel</div>
+        </div>
+        <div class="pipeline-arrow">→</div>
+        <div class="pipeline-step">
+          <div class="pipeline-step-num" style="--accent-local:#f59e0b">03</div>
+          <div class="pipeline-step-name">NMS — thinning</div>
+          <div class="pipeline-step-desc">Keep only the sharpest peak along gradient direction; collapse ridges to single-pixel lines</div>
+        </div>
+        <div class="pipeline-arrow">→</div>
+        <div class="pipeline-step">
+          <div class="pipeline-step-num" style="--accent-local:#ef4444">04</div>
+          <div class="pipeline-step-name">Hysteresis</div>
+          <div class="pipeline-step-desc">Strong edges survive; weak edges survive only if connected to a strong neighbour</div>
+        </div>
+      </div>
+
+      <p class="part-sub-intro">Choose an image source below and step through each stage to see what every operation contributes.</p>
+
+      <div class="src-cards" id="srcTabs">
+        <button class="src-card on" data-src="sample" onclick="setSrc('sample')">
+          <span class="src-card-icon">🖼</span>
+          <span class="src-card-title">Sample images</span>
+          <span class="src-card-sub">Choose a preset scene</span>
         </button>
-        <span class="cam-status" id="cstat"></span>
+        <button class="src-card" data-src="upload" onclick="setSrc('upload')">
+          <span class="src-card-icon">⬆️</span>
+          <span class="src-card-title">Upload your own</span>
+          <span class="src-card-sub">Try any photo from your device</span>
+        </button>
+        <button class="src-card" data-src="cam" onclick="setSrc('cam')">
+          <span class="src-card-icon">📷</span>
+          <span class="src-card-title">Live webcam</span>
+          <span class="src-card-sub">See Canny detect edges in real time</span>
+        </button>
       </div>
-    </div>
-    <video id="vid" autoplay muted playsinline style="display:none;width:0;height:0"></video>
-  </div>
 
-  <div class="step-bar" id="p2stepbar"></div>
-
-  <div class="canny-canvases">
-    <div class="canny-canvas-col">
-      <div class="canvas-label-row"><span class="canvas-label">Input</span></div>
-      <canvas id="cin" width="340" height="255"></canvas>
-    </div>
-    <div class="canny-canvas-col">
-      <div class="canvas-label-row">
-        <span class="canvas-label" id="p2-outlabel">Full Canny</span>
+      <div id="src-sample">
+        <div class="pills" id="spills"></div>
       </div>
-      <canvas id="cout" width="340" height="255"></canvas>
-    </div>
-  </div>
-  <div class="step-note" id="p2-note"></div>
-</section>
+      <div id="src-upload" style="display:none">
+        <div class="upload-zone" onclick="document.getElementById('fin').click()">
+          <div class="upload-icon">+</div>
+          <div class="upload-title">Click to upload your image</div>
+          <div class="upload-sub">Any photo works — faces, nature, buildings, textures.<br>See how Canny responds to edges in <em>your</em> images.</div>
+          <input type="file" id="fin" accept="image/*" style="display:none" onchange="loadFile(this)">
+        </div>
+      </div>
+      <div id="src-cam" style="display:none">
+        <div class="cam-panel">
+          <div class="cam-intro">
+            <p class="cam-intro-text">Point your camera at anything — hands, a book, your face, a scene outside. Canny will detect edges live as you move.</p>
+          </div>
+          <div class="cam-controls-row">
+            <button class="cam-btn-large" id="cbtn" onclick="toggleCam()">
+              <span class="cam-btn-icon">▶</span> Start camera
+            </button>
+            <span class="cam-status" id="cstat"></span>
+          </div>
+        </div>
+        <video id="vid" autoplay muted playsinline style="display:none;width:0;height:0"></video>
+      </div>
 
-<!-- ═══════════════════════════════════════════════════ PART 3 -->
-<section class="part" id="part3">
-  <div class="part-header">
-    <div class="part-number">03</div>
-    <div class="part-header-text">
-      <h2 class="part-title">Hyper&shy;parameters &amp; <em>tuning</em></h2>
-      <p class="part-intro">A <strong>hyperparameter</strong> is a value you set before the algorithm runs — not learned from data. It shapes what the algorithm can find. Canny has three. Tuning means choosing values that maximise true edges while minimising false ones from noise.</p>
-    </div>
-  </div>
+      <div class="step-bar" id="p2stepbar"></div>
 
-  <div class="param-cards">
-    <div class="param-card">
-      <div class="param-card-label">σ — Gaussian blur radius</div>
-      <p>Larger σ = wider smoothing kernel = noise suppressed more aggressively. But fine edges merge. σ=0 skips blur entirely — watch what happens.</p>
-      <div class="param-eq">G_σ(x,y) = (1/2πσ²)·exp(−(x²+y²)/2σ²)
+      <div class="canny-canvases">
+        <div class="canny-canvas-col">
+          <div class="canvas-label-row"><span class="canvas-label">The original image</span></div>
+          <canvas id="cin" width="340" height="255"></canvas>
+        </div>
+        <div class="canny-canvas-col">
+          <div class="canvas-label-row">
+            <span class="canvas-label" id="p2-outlabel">Full Canny</span>
+          </div>
+          <canvas id="cout" width="340" height="255"></canvas>
+        </div>
+      </div>
+      <div class="step-note" id="p2-note"></div>
+
+      <!-- Forward arrow → Part 3 -->
+      <div class="slide-nav-row slide-nav-row--right">
+        <button class="slide-nav-btn" onclick="cannySlide(1)">
+          Hyperparameter Tuning
+          <span class="slide-nav-arrow">→</span>
+        </button>
+      </div>
+    </section>
+
+    <!-- ── SLIDE 1: Part 3 — Hyperparameter Tuning ── -->
+    <section class="canny-slide part" id="part3">
+
+      <!-- Back arrow → Part 2 -->
+      <div class="slide-nav-row slide-nav-row--left">
+        <button class="slide-nav-btn" onclick="cannySlide(0)">
+          <span class="slide-nav-arrow">←</span>
+          Canny Pipeline
+        </button>
+      </div>
+
+      <div class="part-header">
+        <div class="part-number">03</div>
+        <div class="part-header-text">
+          <h2 class="part-title">Hyper&shy;parameters &amp; <em>tuning</em></h2>
+          <p class="part-intro">A <strong>hyperparameter</strong> is a value you set before the algorithm runs — not learned from data. It shapes what the algorithm can find. Canny has three. Tuning means choosing values that maximise true edges while minimising false ones from noise.</p>
+        </div>
+      </div>
+
+      <div class="param-cards">
+        <div class="param-card">
+          <div class="param-card-label">σ — Gaussian blur radius</div>
+          <p>Larger σ = wider smoothing kernel = noise suppressed more aggressively. But fine edges merge. σ=0 skips blur entirely — watch what happens.</p>
+          <div class="param-eq">G_σ(x,y) = (1/2πσ²)·exp(−(x²+y²)/2σ²)
 kernel radius r = ⌈3σ⌉</div>
-    </div>
-    <div class="param-card">
-      <div class="param-card-label">T<sub>hi</sub> &amp; T<sub>lo</sub> — dual thresholds</div>
-      <p>T<sub>hi</sub> (% of max gradient): strong-edge floor. T<sub>lo</sub> as % of T<sub>hi</sub>: weak-edge floor. Hysteresis: weak pixels survive only if 8-connected to a strong pixel.</p>
-      <div class="param-eq">STRONG  if |∇I|/max ≥ T_hi
+        </div>
+        <div class="param-card">
+          <div class="param-card-label">T<sub>hi</sub> &amp; T<sub>lo</sub> — dual thresholds</div>
+          <p>T<sub>hi</sub> (% of max gradient): strong-edge floor. T<sub>lo</sub> as % of T<sub>hi</sub>: weak-edge floor. Hysteresis: weak pixels survive only if 8-connected to a strong pixel.</p>
+          <div class="param-eq">STRONG  if |∇I|/max ≥ T_hi
 WEAK    if T_lo·T_hi ≤ |∇I|/max &lt; T_hi
 REJECT  otherwise</div>
-    </div>
-  </div>
+        </div>
+      </div>
 
-  <p class="part-sub-intro">Step through the pipeline. Each step reveals which parameters affect it. At Full Canny, all three are live — plus presets to explore classic failure modes.</p>
+      <p class="part-sub-intro">Step through the pipeline. Each step reveals which parameters affect it. At Full Canny, all three are live — plus presets to explore classic failure modes.</p>
 
-  <div class="step-bar" id="p3stepbar"></div>
+      <div class="step-bar" id="p3stepbar"></div>
 
-  <div class="canny-canvases">
-    <div class="canny-canvas-col">
-      <div class="canvas-label-row"><span class="canvas-label">Same input</span></div>
-      <canvas id="p3in" width="340" height="255"></canvas>
-    </div>
-    <div class="canny-canvas-col">
-      <div class="canvas-label-row">
-        <span class="canvas-label" id="p3-outlabel">Full Canny</span>
+      <div class="canny-canvases">
+        <div class="canny-canvas-col">
+          <div class="canvas-label-row"><span class="canvas-label">Same input</span></div>
+          <canvas id="p3in" width="340" height="255"></canvas>
+        </div>
+        <div class="canny-canvas-col">
+          <div class="canvas-label-row">
+            <span class="canvas-label" id="p3-outlabel">Full Canny</span>
+          </div>
+          <canvas id="p3out" width="340" height="255"></canvas>
+        </div>
       </div>
-      <canvas id="p3out" width="340" height="255"></canvas>
-    </div>
-  </div>
 
-  <div class="tuning-controls" id="p3ctrlCard">
-    <div class="tuning-ctrl-group" id="p3sigma-wrap">
-      <div class="tuning-param-name">σ — blur radius <span class="tuning-value-badge" id="p3sv">1</span></div>
-      <div class="tuning-slider-row">
-        <span class="tuning-range-label">0 (off)</span>
-        <input type="range" id="p3sigma" min="0" max="6" value="1" step="1" oninput="p3update()" class="tuning-range">
-        <span class="tuning-range-label">6 (heavy)</span>
+      <div class="tuning-controls" id="p3ctrlCard">
+        <div class="tuning-ctrl-group" id="p3sigma-wrap">
+          <div class="tuning-param-name">σ — blur radius <span class="tuning-value-badge" id="p3sv">1</span></div>
+          <div class="tuning-slider-row">
+            <span class="tuning-range-label">0 (off)</span>
+            <input type="range" id="p3sigma" min="0" max="6" value="1" step="1" oninput="p3update()" class="tuning-range">
+            <span class="tuning-range-label">6 (heavy)</span>
+          </div>
+        </div>
+        <div class="tuning-ctrl-group" id="p3thr-wrap" style="display:none">
+          <div class="tuning-param-name">T<sub>hi</sub> — strong edge % <span class="tuning-value-badge" id="p3thv">30%</span></div>
+          <div class="tuning-slider-row">
+            <span class="tuning-range-label">5%</span>
+            <input type="range" id="p3thi" min="5" max="90" value="30" step="1" oninput="p3update()" class="tuning-range">
+            <span class="tuning-range-label">90%</span>
+          </div>
+          <div class="tuning-param-name" style="margin-top:.75rem">T<sub>lo</sub> ratio (% of T<sub>hi</sub>) <span class="tuning-value-badge" id="p3tlv">33%</span></div>
+          <div class="tuning-slider-row">
+            <span class="tuning-range-label">10%</span>
+            <input type="range" id="p3tlo" min="10" max="90" value="33" step="1" oninput="p3update()" class="tuning-range">
+            <span class="tuning-range-label">90%</span>
+          </div>
+        </div>
+        <div class="tuning-presets" id="p3presets" style="display:none">
+          <div class="tuning-presets-label">Explore presets</div>
+          <div class="tuning-preset-btns">
+            <button class="preset-btn" onclick="p3preset(1,30,33)">Default (σ=1.4 approx)</button>
+            <button class="preset-btn preset-danger" onclick="p3preset(0,30,33)">σ=0 no blur</button>
+            <button class="preset-btn" onclick="p3preset(4,30,33)">σ=4 heavy blur</button>
+            <button class="preset-btn" onclick="p3preset(1,55,33)">High T_hi (strict)</button>
+            <button class="preset-btn" onclick="p3preset(1,10,33)">Low T_hi (noisy)</button>
+            <button class="preset-btn preset-danger" onclick="p3preset(1,30,85)">T_lo ≈ T_hi (no hysteresis)</button>
+            <button class="preset-btn" onclick="p3preset(1,30,15)">T_lo low (wide band)</button>
+          </div>
+        </div>
       </div>
-    </div>
-    <div class="tuning-ctrl-group" id="p3thr-wrap" style="display:none">
-      <div class="tuning-param-name">T<sub>hi</sub> — strong edge % <span class="tuning-value-badge" id="p3thv">30%</span></div>
-      <div class="tuning-slider-row">
-        <span class="tuning-range-label">5%</span>
-        <input type="range" id="p3thi" min="5" max="90" value="30" step="1" oninput="p3update()" class="tuning-range">
-        <span class="tuning-range-label">90%</span>
+      <div class="step-note" id="p3-note"></div>
+
+      <!-- Back arrow again at the bottom -->
+      <div class="slide-nav-row slide-nav-row--left" style="margin-top:1.5rem">
+        <button class="slide-nav-btn" onclick="cannySlide(0)">
+          <span class="slide-nav-arrow">←</span>
+          Back to Canny Pipeline
+        </button>
       </div>
-      <div class="tuning-param-name" style="margin-top:.75rem">T<sub>lo</sub> ratio (% of T<sub>hi</sub>) <span class="tuning-value-badge" id="p3tlv">33%</span></div>
-      <div class="tuning-slider-row">
-        <span class="tuning-range-label">10%</span>
-        <input type="range" id="p3tlo" min="10" max="90" value="33" step="1" oninput="p3update()" class="tuning-range">
-        <span class="tuning-range-label">90%</span>
-      </div>
-    </div>
-    <div class="tuning-presets" id="p3presets" style="display:none">
-      <div class="tuning-presets-label">Explore presets</div>
-      <div class="tuning-preset-btns">
-        <button class="preset-btn" onclick="p3preset(1,30,33)">Default (σ=1.4 approx)</button>
-        <button class="preset-btn preset-danger" onclick="p3preset(0,30,33)">σ=0 no blur</button>
-        <button class="preset-btn" onclick="p3preset(4,30,33)">σ=4 heavy blur</button>
-        <button class="preset-btn" onclick="p3preset(1,55,33)">High T_hi (strict)</button>
-        <button class="preset-btn" onclick="p3preset(1,10,33)">Low T_hi (noisy)</button>
-        <button class="preset-btn preset-danger" onclick="p3preset(1,30,85)">T_lo ≈ T_hi (no hysteresis)</button>
-        <button class="preset-btn" onclick="p3preset(1,30,15)">T_lo low (wide band)</button>
-      </div>
-    </div>
-  </div>
-  <div class="step-note" id="p3-note"></div>
-</section>
+    </section>
+
+  </div><!-- /canny-slides-track -->
+</div><!-- /canny-slider-wrap -->
 
 <!-- FOOTER -->
 <footer class="footer">

@@ -793,6 +793,8 @@ sub, sup { font-size: 0.8em; }
   display: flex; gap: .4rem;
   margin-bottom: 1rem; flex-wrap: wrap;
   max-width: var(--max-w);
+  margin-left: auto; margin-right: auto;
+  justify-content: center;
 }
 .step-pill {
   flex: 1; min-width: 90px;

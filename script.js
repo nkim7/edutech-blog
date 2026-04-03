@@ -716,11 +716,11 @@ function buildSamplePills() {
 
 // STEP DEFINITIONS
 const P2STEPS = [
-  { id:'blur', label:'1 · Blur', note:'The original image is converted to grayscale, then a 5×5 Gaussian filter with σ=1.4 is applied. This suppresses noise before differentiation — without it, the gradient would fire on every sensor spike, producing thousands of false edges.' },
-  { id:'gradient', label:'2 · Gradient', note:'Intensity gradient of the blurred image. Edges of the image are handled by replicating border pixels. Sobel computes Gx and Gy; magnitude |∇I| = √(Gx²+Gy²) and direction θ = atan2(Gy,Gx) are stored for every pixel.' },
-  { id:'nms', label:'3 · NMS', note:'Non-maximum suppression applied to the gradient image. For each pixel, its magnitude is compared to interpolated neighbours along gradient direction θ. Only the local peak survives — collapsing wide ridges to single-pixel-wide edges.' },
-  { id:'threshold', label:'4 · Threshold', note:'Double thresholding applied. Weak pixels have gradient between 10%–30% of the maximum. Strong pixels exceed 30%. White = strong, blue = weak candidate, black = rejected. Hysteresis next decides the fate of weak pixels.' },
-  { id:'all', label:'Full Canny', note:'Hysteresis applied: starting from every strong pixel, weak neighbours are accepted if they are 8-connected to a strong edge. Isolated weak pixels are discarded. Result: a clean, thin binary edge map.' }
+  { id:'blur',      label:'1 · Blur',      note:'Image has been reduced to grayscale, and a 5×5 Gaussian filter with σ=1.4 has been applied.' },
+  { id:'gradient',  label:'2 · Gradient',  note:'The intensity gradient of the previous image. The edges of the image have been handled by replicating.' },
+  { id:'nms',       label:'3 · NMS',       note:'Non-maximum suppression applied to the previous image.' },
+  { id:'threshold', label:'4 · Threshold', note:'Double thresholding applied to the previous image. Weak pixels are those with a gradient value between 0.1 and 0.3. Strong pixels have a gradient value greater than 0.3.' },
+  { id:'all',       label:'Full Canny',    note:'Hysteresis applied to the previous image.' }
 ];
 
 const P3STEPS = [
