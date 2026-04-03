@@ -628,7 +628,9 @@ const p3inctx = p3inCv.getContext('2d'), p3outctx = p3outCv.getContext('2d');
 let curSrc = 'sample', camStream = null, camRunning = false, rafId = null;
 let curP2Step = 'all', curP3Step = 'all';
 
-const IMG_SRC = './Large_Scaled_Forest_Lizard.jpg';
+const IMG_SRC_IMG = './lizard.jpg';
+const IMG_SRC_PORTRAIT = './portrait.jpg';
+const IMG_SRC_ARCHITECTURE = './architecture.jpg';
 
 function loadImgToAll(src) {
   const img = new Image();
@@ -695,11 +697,9 @@ function syncAll() {
 }
 
 const SAMPLES = [
-  { label: 'Image', fn: () => loadImgToAll(IMG_SRC) },
-  { label: 'Portrait', fn: drawFace },
-  { label: 'Textures', fn: drawTexture },
-  { label: 'Architecture', fn: drawArch },
-  { label: 'Cityscape', fn: drawPortrait2 }
+  { label: 'Image', fn: () => loadImgToAll(IMG_SRC_IMG) },
+  { label: 'Portrait', fn: () => loadImgToAll(IMG_SRC_PORTRAIT) },
+  { label: 'Architecture', fn: () => loadImgToAll(IMG_SRC_ARCHITECTURE) },
 ];
 
 function buildSamplePills() {
