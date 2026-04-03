@@ -123,7 +123,7 @@
       <div class="select-wrap">
         <select id="opMode">
     
-          <option value="blur">Blur (Gaussian)</option>
+          <option value="blur">Gaussian Blur</option>
           <option value="avgpool">Avg pool</option>
           <option value="identity">Identity</option>
         </select>
@@ -308,7 +308,7 @@
   <div class="step-bar" id="sharedStepBar"></div>
 
 <div class="step-note" id="p2-note">
-  Double thresholding identifies strong (white) and weak (blue) edges.
+  Gaussian blur reduces noise and small details. High σ = smoother edges.
 </div>
 
   <div class="canny-section">
@@ -373,7 +373,7 @@
   </div>
 </footer>
 
-<script src="script.js"></script>
+<script src="script.js?v=2"></script>
 
 <!-- ═══════════════════════════════════════════════════ TUNING POPUP -->
 <div id="tuningPopup" class="popup-overlay" style="display:none">

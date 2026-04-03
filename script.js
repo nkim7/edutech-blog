@@ -629,7 +629,7 @@ const p3inCv = document.getElementById('p3in'), p3outCv = document.getElementByI
 const p3inctx = p3inCv.getContext('2d'), p3outctx = p3outCv.getContext('2d');
 
 let curSrc = 'sample', camStream = null, camRunning = false, rafId = null, wasWebcamRunning = false;
-let curSampleIdx = 0, tuningUnlocked = false, activeStep = 5;
+let curSampleIdx = 0, tuningUnlocked = false, activeStep = 0;
 
 const STEP_LABELS = [
   '1. Blur',
@@ -675,28 +675,7 @@ function buildSharedStepBar() {
   });
 
   setStepNote();
-}
 
-function buildSharedStepBar() {
-  const bar = document.getElementById('sharedStepBar');
-  bar.innerHTML = '';
-  STEP_LABELS.forEach((label, i) => {
-    const btn = document.createElement('button');
-    btn.className = 'step-pill' + (i === activeStep ? ' on' : '');
-    btn.textContent = label;
-    btn.onclick = () => {
-      activeStep = i;
-      document.querySelectorAll('.step-pill').forEach((b, idx) => {
-        b.classList.toggle('on', idx === i);
-      });
-
-      const note = document.getElementById('p2-note');
-      if (note) note.textContent = STEP_DESCS[i];
-
-      p3update();
-    };
-    bar.appendChild(btn);
-  });
 }
 
 function p3update() {
@@ -1019,12 +998,8 @@ function showPopupPage(n) {
 }
 
 function showQuizPass() {
-  // Show the success as a second popup on top of the quiz popup
-  // Add a small delay to let the "Perfect match!" message sink in
-  setTimeout(() => {
-    const sp = document.getElementById('successPopup');
-    if (sp) sp.style.display = 'flex';
-  }, 1200);
+  const sp = document.getElementById('successPopup');
+  if (sp) sp.style.display = 'flex';
 }
 
 function closeSuccessPopup() {
@@ -1161,10 +1136,22 @@ function putThr(ctx, nms, w, h, maxMag, thi, tloR) {
 /* ──────────────────────────────────────────
    INIT
 ────────────────────────────────────────── */
+
+activeStep = 0; 
+
+
 buildFilterPills();
-selectFilter('sobel');
+selectFilter('sobel'); // Initializes the Filter Explorer section
 clearDraw();
-buildSamplePills();
+buildSamplePills(); // Sets up Lizard/Portrait/Architecture buttons
+
+// 3. Build the Canny step bar 
+// It is CRITICAL this runs after activeStep = 0 so the first button gets the ".on" class
 buildSharedStepBar();
+
+// 4. Update the status description text to match activeStep (index 0)
+setStepNote();
+
+// 5. Initialize the convolution animator and load the default image
 rebuildAnim();
-SAMPLES[0].fn(); // Load lizard on start
+SAMPLES[0].fn(); // This loads the lizard and calls p3update() to draw the Blur output
