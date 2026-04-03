@@ -983,6 +983,16 @@ function camLoop() {
 }
 
 /* ──────────────────────────────────────────
+   CANNY SLIDE NAVIGATION (parts 02 ↔ 03)
+────────────────────────────────────────── */
+let _cannySlideIdx = 0;
+function cannySlide(idx) {
+  _cannySlideIdx = idx;
+  const track = document.getElementById('cannyTrack');
+  if (track) track.style.transform = `translateX(${-idx * 100}%)`;
+}
+
+/* ──────────────────────────────────────────
    INIT
 ────────────────────────────────────────── */
 buildFilterPills();

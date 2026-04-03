@@ -961,6 +961,23 @@ sub, sup { font-size: 0.8em; }
 }
 
 /* ════════════════════════════════════════
+   CANNY SLIDE TRANSITION (parts 02 & 03)
+════════════════════════════════════════ */
+.canny-slider-wrap {
+  overflow: hidden;
+  width: 100%;
+}
+.canny-slides-track {
+  display: flex;
+  transition: transform 0.55s cubic-bezier(0.45, 0, 0.15, 1);
+  will-change: transform;
+}
+.canny-slide {
+  min-width: 100%;
+  flex-shrink: 0;
+}
+
+/* ════════════════════════════════════════
    SCROLLBAR
 ════════════════════════════════════════ */
 ::-webkit-scrollbar { width: 6px; }
@@ -1028,6 +1045,7 @@ sub, sup { font-size: 0.8em; }
 .pills,
 .bridge-inner,
 .src-bar,
+.src-cards,
 .step-note,
 .tuning-controls,
 .param-cards,
@@ -1036,6 +1054,7 @@ sub, sup { font-size: 0.8em; }
   margin-right: auto;
   text-align: left;
 }
+.pills { justify-content: center; }
 
 /* eq-display stays centred — it's a math expression */
 .eq-display { text-align: center; }
