@@ -515,7 +515,7 @@ function renderCalcExample(id, f) {
         const lum = Math.round(v / 255 * 100);
         bg = `hsl(0,0%,${lum}%)`; col = v > 128 ? '#222' : '#eee';
       }
-      d.style.cssText = `width:${CELL}px;height:${CELL_H}px;display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-size:12px;font-weight:700;border-radius:3px;background:${bg};color:${col}`;
+      d.style.cssText = `width:${CELL}px;height:${CELL_H}px;display:flex;align-items:center;justify-content:center;font-family:'ui-monospace','SF Mono','Fira Code',monospace;font-size:13px;font-weight:700;border-radius:3px;background:${bg};color:${col}`;
       d.textContent = Number.isInteger(v) ? v : v.toFixed(2);
       g.appendChild(d);
     });
@@ -541,7 +541,7 @@ function renderCalcExample(id, f) {
   // Bottom: full equation
   const eq = document.createElement('div');
   const shownTerms = flat.map((v,i) => k[i] !== 0 ? `${v}×${Number.isInteger(k[i]) ? k[i] : k[i].toFixed(2)}` : null).filter(Boolean);
-  eq.style.cssText = `font-family:var(--mono);font-size:0.9rem;line-height:1.85;color:var(--dk-muted);background:var(--dk-bg3);padding:10px 14px;border-radius:5px;border-left:3px solid var(--gold);white-space:pre-wrap`;
+  eq.style.cssText = `font-family:'ui-monospace','SF Mono','Fira Code',monospace;font-size:0.9rem;line-height:1.85;color:#9ca3af;background:#374151;padding:10px 14px;border-radius:5px;border-left:3px solid #f59e0b;white-space:pre-wrap`;
   eq.textContent = '= ' + shownTerms.slice(0,6).join(' + ') + (shownTerms.length > 6 ? '\n  + …' : '') + '\n= ' + Math.round(sum/div) + (isEmboss ? ' + 128 = ' + out : '   →   output: ' + out);
   el.appendChild(eq);
 }
@@ -716,11 +716,11 @@ function buildSamplePills() {
 
 // STEP DEFINITIONS
 const P2STEPS = [
-  { id:'blur', label:'1 · Blur', note:'Gaussian blur smooths the image before differentiation. Compare output vs input — noise becomes smooth gradients. Without this step the derivative fires on every sensor spike, producing thousands of false edges.' },
-  { id:'gradient', label:'2 · Gradient', note:'Sobel gradient magnitude |∇I| = √(Gx²+Gy²). Bright pixels = rapid intensity change = edge candidates. Gradient direction θ is also computed but not shown here — it guides the thinning step. Notice every textured region lights up.' },
-  { id:'nms', label:'3 · NMS', note:'Non-maximum suppression: walk along gradient direction θ, keep only the local peak. Collapses wide bright ridges from the gradient map to single-pixel-wide lines. Compare carefully — the blurry halos disappear.' },
-  { id:'threshold', label:'4 · Threshold', note:'Double thresholding. White = strong edge (|∇I| ≥ 20% of max). Blue = weak candidate (8–20%). Black = rejected. The hysteresis step decides the fate of blue pixels based on connectivity to strong edges.' },
-  { id:'all', label:'Full Canny', note:'Hysteresis floods from every strong (white) pixel, accepting connected weak (blue) neighbours. Isolated weak pixels are discarded. Result: thin binary edge map — the input to object detectors, segmentation, feature matchers.' }
+  { id:'blur', label:'1 · Blur', note:'The original image is converted to grayscale, then a 5×5 Gaussian filter with σ=1.4 is applied. This suppresses noise before differentiation — without it, the gradient would fire on every sensor spike, producing thousands of false edges.' },
+  { id:'gradient', label:'2 · Gradient', note:'Intensity gradient of the blurred image. Edges of the image are handled by replicating border pixels. Sobel computes Gx and Gy; magnitude |∇I| = √(Gx²+Gy²) and direction θ = atan2(Gy,Gx) are stored for every pixel.' },
+  { id:'nms', label:'3 · NMS', note:'Non-maximum suppression applied to the gradient image. For each pixel, its magnitude is compared to interpolated neighbours along gradient direction θ. Only the local peak survives — collapsing wide ridges to single-pixel-wide edges.' },
+  { id:'threshold', label:'4 · Threshold', note:'Double thresholding applied. Weak pixels have gradient between 10%–30% of the maximum. Strong pixels exceed 30%. White = strong, blue = weak candidate, black = rejected. Hysteresis next decides the fate of weak pixels.' },
+  { id:'all', label:'Full Canny', note:'Hysteresis applied: starting from every strong pixel, weak neighbours are accepted if they are 8-connected to a strong edge. Isolated weak pixels are discarded. Result: a clean, thin binary edge map.' }
 ];
 
 const P3STEPS = [
@@ -794,12 +794,14 @@ function gaussBlur(g, w, h, sigma) {
 }
 
 function computeSobel(b, w, h) {
+  // Edge-replicated padding: clamp coordinates instead of leaving borders at 0
+  const get = (y, x) => b[Math.max(0,Math.min(h-1,y))*w + Math.max(0,Math.min(w-1,x))];
   const mag=new Float32Array(w*h), dir=new Float32Array(w*h);
   const kx=[-1,0,1,-2,0,2,-1,0,1], ky=[-1,-2,-1,0,0,0,1,2,1]; let mx=0;
-  for (let y=1; y<h-1; y++) for (let x=1; x<w-1; x++) {
-    let gx=0,gy=0;
+  for (let y=0; y<h; y++) for (let x=0; x<w; x++) {
+    let gx=0, gy=0;
     for (let j=-1; j<=1; j++) for (let i=-1; i<=1; i++) {
-      const v=b[(y+j)*w+(x+i)], ki=(j+1)*3+(i+1);
+      const v = get(y+j, x+i), ki=(j+1)*3+(i+1);
       gx+=v*kx[ki]; gy+=v*ky[ki];
     }
     const m=Math.sqrt(gx*gx+gy*gy);
@@ -809,15 +811,19 @@ function computeSobel(b, w, h) {
 }
 
 function applyNMS(mag, dir, w, h) {
-  const out=new Float32Array(w*h);
+  // Sub-pixel interpolated NMS: compare along continuous gradient direction
+  const out = new Float32Array(w*h);
+  const interp = (fx, fy) => {
+    const x0=Math.floor(fx), y0=Math.floor(fy), x1=x0+1, y1=y0+1;
+    if(x0<0||x1>=w||y0<0||y1>=h) return 0;
+    const dx=fx-x0, dy=fy-y0;
+    return mag[y0*w+x0]*(1-dx)*(1-dy) + mag[y0*w+x1]*dx*(1-dy)
+         + mag[y1*w+x0]*(1-dx)*dy     + mag[y1*w+x1]*dx*dy;
+  };
   for (let y=1; y<h-1; y++) for (let x=1; x<w-1; x++) {
-    const a=((dir[y*w+x]*180/Math.PI)%180+180)%180;
-    let p,q;
-    if(a<22.5||a>=157.5){p=mag[y*w+x+1];q=mag[y*w+x-1];}
-    else if(a<67.5){p=mag[(y-1)*w+x+1];q=mag[(y+1)*w+x-1];}
-    else if(a<112.5){p=mag[(y-1)*w+x];q=mag[(y+1)*w+x];}
-    else{p=mag[(y-1)*w+x-1];q=mag[(y+1)*w+x+1];}
-    out[y*w+x]=(mag[y*w+x]>=p&&mag[y*w+x]>=q)?mag[y*w+x]:0;
+    const c=Math.cos(dir[y*w+x]), s=Math.sin(dir[y*w+x]);
+    const p=interp(x+c, y+s), q=interp(x-c, y-s);
+    out[y*w+x] = (mag[y*w+x]>=p && mag[y*w+x]>=q) ? mag[y*w+x] : 0;
   }
   return out;
 }
@@ -864,7 +870,9 @@ function putThr(ctx,nms,w,h,maxMag,thi,tloR){
 }
 
 function runP2() {
-  const w=cin.width,h=cin.height,sigma=1,thi=.20,tloR=.40;
+  // σ=1.4 (5×5 Gaussian), thi=0.30, tlo=0.10 — matching standard Canny parameters
+  const w=cin.width, h=cin.height, sigma=1.4, thi=0.30, tlo=0.10;
+  const tloR = tlo / thi; // ratio for runHysteresis / putThr
   const g=getGray(cinctx.getImageData(0,0,w,h),w,h);
   const b=gaussBlur(g,w,h,sigma);
   if(curP2Step==='blur'){putGrayF(coutctx,b,w,h,255);return;}

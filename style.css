@@ -554,13 +554,37 @@ sub, sup { font-size: 0.8em; }
 .clear-btn:hover { border-color: var(--ink); color: var(--ink); }
 
 /* ════════════════════════════════════════
-   FILTER WORKSPACE
+   FILTER MAIN LAYOUT (2-column)
+════════════════════════════════════════ */
+.filter-pills-row {
+  margin-bottom: 1rem;
+  max-width: var(--max-w);
+  margin-left: auto; margin-right: auto;
+}
+.filter-pills { display: flex; flex-direction: row; flex-wrap: wrap; gap: .4rem; }
+
+.filter-main-layout {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 1.75rem;
+  align-items: start;
+  max-width: var(--max-w);
+  margin: 0 auto;
+}
+.filter-canvas-panel {
+  display: flex; flex-direction: column; gap: .75rem;
+}
+.draw-controls--compact {
+  margin-bottom: 0;
+}
+
+/* ════════════════════════════════════════
+   FILTER WORKSPACE (canvas pair)
 ════════════════════════════════════════ */
 .filter-workspace {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 1.5rem; align-items: start; margin-bottom: 2rem;
-  max-width: var(--max-w);
+  gap: .75rem; align-items: start;
 }
 .draw-canvas {
   width: 100%; display: block; cursor: crosshair;
@@ -574,11 +598,6 @@ sub, sup { font-size: 0.8em; }
   border: 1px solid var(--border-med);
   border-radius: var(--rad-sm);
 }
-.filter-pills-row {
-  margin-bottom: 1rem;
-  max-width: var(--max-w);
-}
-.filter-pills { display: flex; flex-direction: row; flex-wrap: wrap; gap: .4rem; }
 .pill {
   font-family: var(--sans); font-size: 0.8rem; font-weight: 500;
   height: 34px; padding: 0 1rem;
@@ -603,8 +622,8 @@ sub, sup { font-size: 0.8em; }
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--rad);
-  padding: 1.5rem; margin-top: .5rem;
-  max-width: var(--max-w);
+  padding: 1.25rem;
+  min-width: 0; /* allow grid shrink */
 }
 .filter-card-eq-row { margin-bottom: 1.25rem; }
 .filter-eq {
@@ -978,7 +997,8 @@ sub, sup { font-size: 0.8em; }
 @media (max-width: 900px) {
   .concept-cards { grid-template-columns: 1fr 1fr; }
   .eq-legend { grid-template-columns: 1fr 1fr; }
-  .filter-workspace { grid-template-columns: 1fr; }
+  .filter-main-layout { grid-template-columns: 1fr; }
+  .filter-workspace { grid-template-columns: 1fr 1fr; }
   .filter-pills { flex-direction: row; flex-wrap: wrap; }
   .filter-card-body { grid-template-columns: 1fr; }
   .pipeline-steps { flex-direction: column; }

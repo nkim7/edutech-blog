@@ -211,54 +211,60 @@
     </div>
   </div>
 
-  <p class="part-sub-intro">Draw on the canvas below, then select a filter. The equation, kernel, description, and a worked example update instantly.</p>
+  <p class="part-sub-intro">Select a filter, draw on the left canvas — the kernel, equation, and worked example update live on the right.</p>
 
-  <div class="draw-controls">
-    <label class="ctrl-label">Brush size</label>
-    <input type="range" id="bsz" min="2" max="28" value="10" step="1" oninput="BS=+this.value;document.getElementById('bv').textContent=this.value" class="inline-range">
-    <span class="range-val" id="bv">10</span>
-    <button class="clear-btn" onclick="clearDraw()">Clear ↺</button>
-  </div>
-
+  <!-- Filter pills -->
   <div class="filter-pills-row">
     <div class="filter-pills" id="fpills"></div>
   </div>
 
-  <div class="filter-workspace">
-    <div class="draw-area">
-      <div class="canvas-label-row">
-        <span class="canvas-label">Draw here</span>
-      </div>
-      <canvas id="dc" width="280" height="210" class="draw-canvas"></canvas>
-    </div>
-    <div class="output-area">
-      <div class="canvas-label-row">
-        <span class="canvas-label" id="p1-outlabel">Output</span>
-      </div>
-      <canvas id="oc" width="280" height="210" class="output-canvas"></canvas>
-    </div>
-  </div>
+  <!-- 2-column: canvases left · explanation right -->
+  <div class="filter-main-layout">
 
-  <div class="filter-card" id="filterCard">
-    <div class="filter-card-eq-row">
-      <div class="comp-section-label">Equation</div>
-      <div class="filter-eq" id="feq"></div>
+    <!-- LEFT: draw controls + canvases -->
+    <div class="filter-canvas-panel">
+      <div class="draw-controls draw-controls--compact">
+        <label class="ctrl-label">Brush</label>
+        <input type="range" id="bsz" min="2" max="28" value="10" step="1"
+               oninput="BS=+this.value;document.getElementById('bv').textContent=this.value" class="inline-range">
+        <span class="range-val" id="bv">10</span>
+        <button class="clear-btn" onclick="clearDraw()">Clear ↺</button>
+      </div>
+      <div class="filter-workspace">
+        <div class="draw-area">
+          <div class="canvas-label-row"><span class="canvas-label">Draw here</span></div>
+          <canvas id="dc" width="260" height="200" class="draw-canvas"></canvas>
+        </div>
+        <div class="output-area">
+          <div class="canvas-label-row"><span class="canvas-label" id="p1-outlabel">Output</span></div>
+          <canvas id="oc" width="260" height="200" class="output-canvas"></canvas>
+        </div>
+      </div>
     </div>
-    <div class="filter-card-body">
-      <div class="filter-kernel-col">
-        <div class="comp-section-label">Kernel</div>
-        <div id="kgrid" class="kernel-display-grid"></div>
-        <div class="kernel-op-label" id="klabel"></div>
+
+    <!-- RIGHT: explanation card -->
+    <div class="filter-card" id="filterCard">
+      <div class="filter-card-eq-row">
+        <div class="comp-section-label">Equation</div>
+        <div class="filter-eq" id="feq"></div>
       </div>
-      <div class="filter-desc-col">
-        <div class="comp-section-label">What this kernel computes</div>
-        <div id="fdesc" class="filter-desc-text"></div>
-      </div>
-      <div class="filter-example-col">
-        <div class="comp-section-label">Example calculation</div>
-        <div id="calcExample" class="calc-example-wrap"></div>
+      <div class="filter-card-body">
+        <div class="filter-kernel-col">
+          <div class="comp-section-label">Kernel</div>
+          <div id="kgrid" class="kernel-display-grid"></div>
+          <div class="kernel-op-label" id="klabel"></div>
+        </div>
+        <div class="filter-desc-col">
+          <div class="comp-section-label">What this kernel computes</div>
+          <div id="fdesc" class="filter-desc-text"></div>
+        </div>
+        <div class="filter-example-col">
+          <div class="comp-section-label">Example calculation</div>
+          <div id="calcExample" class="calc-example-wrap"></div>
+        </div>
       </div>
     </div>
+
   </div>
 </section>
 
@@ -421,29 +427,29 @@ REJECT  otherwise</div>
       </div>
     </div>
     <div class="tuning-ctrl-group" id="p3thr-wrap" style="display:none">
-      <div class="tuning-param-name">T<sub>hi</sub> — strong edge % <span class="tuning-value-badge" id="p3thv">20%</span></div>
+      <div class="tuning-param-name">T<sub>hi</sub> — strong edge % <span class="tuning-value-badge" id="p3thv">30%</span></div>
       <div class="tuning-slider-row">
         <span class="tuning-range-label">5%</span>
-        <input type="range" id="p3thi" min="5" max="90" value="20" step="1" oninput="p3update()" class="tuning-range">
+        <input type="range" id="p3thi" min="5" max="90" value="30" step="1" oninput="p3update()" class="tuning-range">
         <span class="tuning-range-label">90%</span>
       </div>
-      <div class="tuning-param-name" style="margin-top:.75rem">T<sub>lo</sub> ratio (% of T<sub>hi</sub>) <span class="tuning-value-badge" id="p3tlv">40%</span></div>
+      <div class="tuning-param-name" style="margin-top:.75rem">T<sub>lo</sub> ratio (% of T<sub>hi</sub>) <span class="tuning-value-badge" id="p3tlv">33%</span></div>
       <div class="tuning-slider-row">
         <span class="tuning-range-label">10%</span>
-        <input type="range" id="p3tlo" min="10" max="90" value="40" step="1" oninput="p3update()" class="tuning-range">
+        <input type="range" id="p3tlo" min="10" max="90" value="33" step="1" oninput="p3update()" class="tuning-range">
         <span class="tuning-range-label">90%</span>
       </div>
     </div>
     <div class="tuning-presets" id="p3presets" style="display:none">
       <div class="tuning-presets-label">Explore presets</div>
       <div class="tuning-preset-btns">
-        <button class="preset-btn" onclick="p3preset(1,20,40)">Default balance</button>
-        <button class="preset-btn preset-danger" onclick="p3preset(0,20,40)">σ=0 no blur</button>
-        <button class="preset-btn" onclick="p3preset(4,20,40)">σ=4 heavy blur</button>
-        <button class="preset-btn" onclick="p3preset(1,55,40)">High T_hi</button>
-        <button class="preset-btn" onclick="p3preset(1,8,40)">Low T_hi</button>
-        <button class="preset-btn preset-danger" onclick="p3preset(1,20,85)">T_lo ≈ T_hi</button>
-        <button class="preset-btn" onclick="p3preset(1,20,15)">Low T_lo (wide band)</button>
+        <button class="preset-btn" onclick="p3preset(1,30,33)">Default (σ=1.4 approx)</button>
+        <button class="preset-btn preset-danger" onclick="p3preset(0,30,33)">σ=0 no blur</button>
+        <button class="preset-btn" onclick="p3preset(4,30,33)">σ=4 heavy blur</button>
+        <button class="preset-btn" onclick="p3preset(1,55,33)">High T_hi (strict)</button>
+        <button class="preset-btn" onclick="p3preset(1,10,33)">Low T_hi (noisy)</button>
+        <button class="preset-btn preset-danger" onclick="p3preset(1,30,85)">T_lo ≈ T_hi (no hysteresis)</button>
+        <button class="preset-btn" onclick="p3preset(1,30,15)">T_lo low (wide band)</button>
       </div>
     </div>
   </div>
