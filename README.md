@@ -6,7 +6,7 @@ An interactive educational blog about spatial filters and Canny edge detection, 
 
 ```
 cv-blog/
-├── index.html   — HTML structure (all 4 parts)
+├── index.html   — HTML structure (all 6 sections)
 ├── style.css    — Design system, layout, typography
 ├── script.js    — All interactive logic (convolution animator, filter explorer, Canny pipeline)
 └── README.md    — This file
@@ -19,34 +19,22 @@ cv-blog/
 3. Go to **Settings → Pages → Branch: main / root** → Save
 4. Your blog will be live at `https://<your-username>.github.io/cv-blog/`
 
-## Adding your own image (optional)
-
-In `script.js`, find the line:
-```js
-const IMG_SRC = '__LIZARD_PLACEHOLDER__';
-```
-
-Replace with either:
-- A relative path: `const IMG_SRC = 'lizard.jpg';` (and put `lizard.jpg` in the repo root)
-- An absolute URL: `const IMG_SRC = 'https://your-cdn.com/image.jpg';`
-- A base64 data URI (for self-contained deployment)
-
-If `IMG_SRC` stays as the placeholder, the "Image" sample will fail silently — the other 4 drawn samples (Portrait, Textures, Architecture, Cityscape) will work fine without any image file.
-
 ## Structure
 
-| Part | ID | Content |
-|------|----|---------|
-| 0 | `#part0` | Convolution animator — sliding kernel on a numeric grid |
-| 1 | `#part1` | Filter explorer — draw and apply 6 classic kernels with worked examples |
-| 2 | `#part2` | Canny pipeline — step through 4 stages with narrative |
-| 3 | `#part3` | Hyperparameter tuning — interactive sliders + presets |
+| Section | ID | Content |
+|---------|----|---------|
+| 01 | `#part0` | Convolution — animate a sliding kernel on a numeric grid |
+| 02 | `#part1` | Spatial Filters — draw and apply 6 classic kernels with worked examples |
+| 03 | `#part2` | Non-Maximum Suppression — thin gradient responses to local maxima |
+| 04 | `#part3` | Double Thresholding — classify strong, weak, and discarded responses |
+| 05 | `#part4` | Canny Edge Detection — step through the 5-stage pipeline |
+| 06 | `#part5` | Hyperparameter Tuning — adjust the Canny parameters and compare edge maps |
 
 ## Design
 
-- **Typography**: Syne (display/UI) + Instrument Serif (italic accents) + DM Mono (equations, labels)
-- **Palette**: Paper warm (#f4efe6) / Ink (#0e0e0e) / Accent red (#ff4822)
-- **Theme**: Editorial × Scientific — grain texture, scanlines, generous whitespace, precise monospace labels
+- **Typography**: Unbounded (display) + Inter (body/UI) + system monospace (equations, labels)
+- **Palette**: White background / dark ink / blue accent
+- **Theme**: Minimal scientific explainer with interactive canvases
 
 ## No dependencies
 
