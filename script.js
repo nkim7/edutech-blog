@@ -83,7 +83,10 @@ function buildInputMatrix(n) {
 
 function getKernel(ks) {
   const weight = 1 / (ks * ks);
-  return { k: Array(ks * ks).fill(weight), label: `${ks}×${ks} averaging blur — each weight is 1/${ks * ks}` };
+  const note = ks === 1
+    ? '1×1 window: degenerate case — sees one pixel at a time, so there is no neighbourhood averaging.'
+    : 'Each output is a local average computed with a uniform kernel.';
+  return { k: Array(ks * ks).fill(weight), label: `${ks}×${ks} averaging blur — each weight is 1/${ks * ks}. ${note}` };
 }
 
 function checkImpossible() {
@@ -146,10 +149,9 @@ function rebuildAnim() {
   updatePosLabel();
   renderKernelDisplay(k, ks, label);
   document.getElementById('inputSizeLabel').textContent = pad > 0 ? `${n}×${n} + padding` : `${n}×${n}`;
-  document.getElementById('outputSizeLabel').textContent = `${outs}×${outs}`;
-  const outLbl = document.getElementById('animOutLabel');
-  if (outLbl) outLbl.textContent = `Output (${outs}×${outs})`;
   stopPlay();
+  document.getElementById('animNote').textContent =
+    'The input numbers form a simple diagonal brightness ramp, making the averaging effect easier to see. Choose settings and press Play, or drag the slider.';
   drawAnimCanvases(0); // shows position 0 with computation immediately
 }
 
@@ -178,12 +180,6 @@ function clampPixel(value) {
 
 function intensityLum(value, maxValue) {
   return 92 - (value / (maxValue || 1)) * 76;
-}
-
-function formatOutputAdjustment(value, output) {
-  if (value < 0 || value > 255) return ` → clamped → ${output}`;
-  if (value !== output) return ` → rounded → ${output}`;
-  return '';
 }
 
 function renderKernelDisplay(k, ks, label) {
@@ -320,12 +316,11 @@ function updateCalcDisplay(pos) {
   const clamped = clampPixel(sum);
   const raw = Math.round(sum * 10000) / 10000;
   const shown = terms.join(' + ') || '0';
-  document.getElementById('animCalc').textContent = shown
-    + formatOutputAdjustment(raw, clamped);
-  document.getElementById('animInlineResult').textContent = clamped;
+  document.getElementById('animCalc').textContent = shown;
   document.getElementById('animResult').textContent = clamped;
   const or = Math.floor(pos / outs), oc = pos % outs;
-  document.getElementById('animResultSub').textContent = `out[${or}][${oc}]`;
+  const adj = raw < 0 || raw > 255 ? ' · clamped to [0, 255]' : (raw !== clamped ? ' · rounded' : '');
+  document.getElementById('animResultSub').textContent = `out[${or}][${oc}]${adj}`;
   document.getElementById('animNote').textContent =
     `Window at input rows ${r0}–${r0+animData.ks-1}, cols ${c0}–${c0+animData.ks-1}. The sum is written to output [${or},${oc}].`;
 
@@ -387,25 +382,26 @@ let BS = 10, drawing = false, curF = 'blur';
 const FILTERS = {
   blur: {
     label: 'Gaussian blur',
-    k: [1,2,1,2,4,2,1,2,1], div: 16, kl: 'Gaussian ≈ 3×3',
-    desc: 'Smooth the image before detecting edges. This weighted neighbourhood average approximates a 2D Gaussian distribution. All weights are positive and sum to 1. The centre contributes most, the diagonals least.',
-    eq: 'G_σ(x,y) = (1/(2πσ²))·exp(−(x²+y²)/(2σ²))\n\n≈  G_{0.85}  =  | 1  2  1 |\n                | 2  4  2 |  ÷ 16\n                | 1  2  1 |',
+    k: [1,2,1,2,4,2,1,2,1], div: 16, kl: 'Gaussian ≈ 3×3 · normalized by 1/16',
+    desc: 'Smooths the image before detecting edges. This weighted neighbourhood average approximates a 2D Gaussian: all weights are positive and sum to 1, with the centre contributing most. Gaussian blur is separable, so implementations often compute it as two 1D passes.',
+    eq: 'G_σ(x,y) = (1/(2πσ²))·exp(−(x²+y²)/(2σ²))\n\n≈  discrete 3×3 kernel (σ ≈ 0.85):\n\n   | 1  2  1 |\n   | 2  4  2 |  ÷ 16\n   | 1  2  1 |',
     exPatch: [[0,0,0,0],[0,160,0,0],[0,0,0,0],[0,0,0,0]],
     exNote: 'A single bright pixel spreads into nearby outputs because each overlapping window computes a weighted average.'
   },
   sobel: {
     label: 'Sobel',
-    kd: [-1,0,1,-2,0,2,-1,0,1], kl: 'Sobel X (3×3)',
-    desc: 'Sobel X measures how quickly pixel intensity changes from left to right. Flat regions produce values near zero. A strong vertical boundary produces a large response because one side of the neighbourhood is darker than the other.',
+    kd:  [-1,0,1,-2,0,2,-1,0,1], kd2: [-1,-2,-1,0,0,0,1,2,1],
+    kl: 'Sobel X + Y → |∇I| = √(Gx²+Gy²)',
+    desc: 'Sobel X measures horizontal intensity change, ∂I/∂x, and is sensitive to vertical edges. Sobel Y measures vertical intensity change, ∂I/∂y, and is sensitive to horizontal edges. Canny combines them as |∇I| = √(Gx² + Gy²). This drawing demo uses a white-paper convention; later pipeline views use bright edges on a dark background.',
     eq: 'Gx = I * k_x\nGy = I * k_y\n|∇I| = √(Gx² + Gy²)\nθ  = atan2(Gy, Gx)',
     exPatch: [[10,10,10,50],[10,10,10,50],[10,10,10,50],[10,10,10,50]],
-    exNote: 'The left windows see a flat region and cancel to 0. The right windows cross a vertical boundary and produce a strong response.'
+    exNote: 'The left windows span a flat region — Gx and Gy cancel to ~0. The right windows cross a vertical boundary, producing a large Gx and therefore a large gradient magnitude.'
   },
   laplacian: {
     label: 'Laplacian',
     group: 'explore',
     k: [0,1,0,1,-4,1,0,1,0], kl: 'Laplacian (3×3)',
-    desc: 'Second-order isotropic derivative ∇²I = ∂²I/∂x² + ∂²I/∂y². Responds to curvature of the intensity surface. Zero-crossings locate edge centres precisely. Highly noise-sensitive — combine with Gaussian first (LoG filter).',
+    desc: 'The Laplacian is a second-derivative filter that responds to curvature in the intensity surface. In the full signed response, zero-crossings can indicate edge centres. This simplified display shows response strength, not the full signed zero-crossing structure. It is noise-sensitive, so it is often paired with Gaussian blur.',
     eq: '∇²I = ∂²I/∂x² + ∂²I/∂y²\n\n        = I *  | 0   1   0 |\n               | 1  -4   1 |\n               | 0   1   0 |',
     exPatch: [[20,20,20,20],[20,100,20,20],[20,20,20,20],[20,20,20,20]],
     exNote: 'An isolated bright pixel differs sharply from its neighbours, so the second derivative responds around that point.'
@@ -414,7 +410,7 @@ const FILTERS = {
     label: 'Sharpen',
     group: 'explore',
     k: [0,-1,0,-1,5,-1,0,-1,0], kl: 'Unsharp mask (3×3)',
-    desc: 'Identity minus a scaled Laplacian: I − α∇²I with α=1. Amplifies high-frequency detail, making edges appear crisper. The centre weight 5 comes from subtracting the Laplacian\'s −4 centre from the identity\'s 1 (1 − (−4) = 5), so it amplifies the pixel relative to its neighbours rather than merely copying it.',
+    desc: 'Identity minus a scaled Laplacian: I − α∇²I with α=1. It amplifies local contrast, making edges appear crisper. The centre weight 5 boosts the pixel relative to its neighbours.',
     eq: 'S = I − α∇²I  (α = 1)\n\n  = I *  |  0  -1   0 |\n         | -1   5  -1 |\n         |  0  -1   0 |',
     exPatch: [[30,30,90,90],[30,30,90,90],[30,30,90,90],[30,30,90,90]],
     exNote: 'Across the boundary, sharpening darkens the darker side and brightens the lighter side, increasing local contrast.'
@@ -423,7 +419,7 @@ const FILTERS = {
     label: 'Emboss',
     group: 'explore',
     k: [-2,-1,0,-1,1,1,0,1,2], kl: 'Emboss (3×3)',
-    desc: 'Asymmetric first-derivative kernel. Negative weights on the top-left subtract, positive on the bottom-right add — equivalent to a directional gradient at ~45°. Output is offset by +128 so negative gradients render as gray, not black. Produces a relief-like 3D effect.',
+    desc: 'Emboss is a directional relief effect, not a pure derivative edge detector. Negative weights on the top-left subtract and positive weights on the bottom-right add. The shifted response puts undrawn white background areas near mid-gray; drawn regions and edges may become lighter or darker.',
     eq: 'E = I * k_emb + 128',
     exPatch: [[0,0,0,0],[0,20,0,0],[0,0,0,0],[0,0,0,0]],
     exNote: 'The single 20 lands on a different kernel weight as the window slides. The +128 offset makes positive responses lighter than the middle gray and negative responses darker.'
@@ -432,7 +428,7 @@ const FILTERS = {
     label: 'Identity',
     group: 'explore',
     k: [0,0,0,0,1,0,0,0,0], kl: 'Identity (3×3)',
-    desc: 'The centre weight is 1 and every other weight is 0, so each output simply copies the centre input pixel. The image stays unchanged. This identity kernel is useful for checking that a filter pipeline is working correctly.',
+    desc: 'The centre weight is 1 and every other weight is 0, so each output copies the centre input pixel. The image stays unchanged, making this a useful pipeline baseline.',
     eq: 'I * identity = I',
     exPatch: [[10,20,30,40],[50,60,70,80],[90,100,110,120],[130,140,150,160]],
     exNote: 'Identity copies the centre pixel of each window unchanged. The four outputs are the four interior input values.'
@@ -442,7 +438,15 @@ const FILTERS = {
 function buildFilterPills() {
   const c = document.getElementById('fpills');
   c.innerHTML = '';
-  Object.entries(FILTERS).forEach(([id, f]) => {
+
+  const mkLabel = text => {
+    const s = document.createElement('span');
+    s.className = 'filter-group-label';
+    s.textContent = text;
+    c.appendChild(s);
+  };
+  const mkPill = id => {
+    const f = FILTERS[id];
     const p = document.createElement('button');
     p.className = 'pill' + (id === curF ? ' on' : '');
     p.id = 'filter-' + id;
@@ -450,87 +454,57 @@ function buildFilterPills() {
     p.textContent = f.label;
     p.onclick = () => selectFilter(id);
     c.appendChild(p);
-  });
-}
+  };
 
-const FILTER_MATH_DETAIL = {
-  blur: {
-    hdrClass: 'blur', hdrText: 'Blur — Gaussian',
-    kernel: [{v:'1',c:'pos-lo'},{v:'2',c:'pos-md'},{v:'1',c:'pos-lo'},{v:'2',c:'pos-md'},{v:'4',c:'pos-hi'},{v:'2',c:'pos-md'},{v:'1',c:'pos-lo'},{v:'2',c:'pos-md'},{v:'1',c:'pos-lo'}],
-    kLabel: '÷ 16 &nbsp;(Gaussian 3×3)',
-    eq: 'out(x,y) = <sup>1</sup>/<sub>16</sub> Σ k(i,j)·I(x+i, y+j)',
-    prop: '<strong>Σw = 1</strong> — output is a weighted local average. Flat regions reproduce exactly; rapid intensity changes are averaged away, reducing noise and fine detail.',
-  },
-  sobel: {
-    hdrClass: 'edge', hdrText: 'Edge Detection — Sobel X',
-    kernel: [{v:'−1',c:'neg'},{v:'0',c:'zero'},{v:'+1',c:'pos-md'},{v:'−2',c:'neg-hi'},{v:'0',c:'zero'},{v:'+2',c:'pos-hi'},{v:'−1',c:'neg'},{v:'0',c:'zero'},{v:'+1',c:'pos-md'}],
-    kLabel: 'Sobel X &nbsp;≈ ∂I/∂x',
-    eq: 'Gx(x,y) ≈ I(x+1, y) − I(x−1, y)',
-    prop: '<strong>Σw = 0</strong> — left and right halves are mirror opposites. Where intensity is constant they cancel. Where intensity changes, the difference is large — that pixel is an edge.',
-  },
-  laplacian: {
-    hdrClass: 'edge', hdrText: 'Laplacian',
-    kernel: [{v:'0',c:'zero'},{v:'1',c:'pos-lo'},{v:'0',c:'zero'},{v:'1',c:'pos-lo'},{v:'−4',c:'neg-hi'},{v:'1',c:'pos-lo'},{v:'0',c:'zero'},{v:'1',c:'pos-lo'},{v:'0',c:'zero'}],
-    kLabel: '∇² (3×3)',
-    eq: '∇²I = ∂²I/∂x² + ∂²I/∂y²',
-    prop: '<strong>Σw = 0</strong> — second-order derivative. Zero-crossings locate edge centres precisely. Highly noise-sensitive — usually combined with Gaussian blur (LoG filter).',
-  },
-  sharpen: {
-    hdrClass: 'sharp', hdrText: 'Sharpen — Unsharp Mask',
-    kernel: [{v:'0',c:'zero'},{v:'−1',c:'neg'},{v:'0',c:'zero'},{v:'−1',c:'neg'},{v:'+5',c:'pos-hi'},{v:'−1',c:'neg'},{v:'0',c:'zero'},{v:'−1',c:'neg'},{v:'0',c:'zero'}],
-    kLabel: 'δ − ∇²',
-    eq: 'S = I − α∇²I,&nbsp; α = 1',
-    prop: '<strong>Centre = 5, ring = −1</strong> — centre weight comes from identity (1) minus Laplacian centre (−4), giving 1 − (−4) = 5. This amplifies the pixel relative to its surroundings rather than merely copying it, boosting edges.',
-  },
-  emboss: {
-    hdrClass: 'sharp', hdrText: 'Emboss',
-    kernel: [{v:'−2',c:'neg-hi'},{v:'−1',c:'neg'},{v:'0',c:'zero'},{v:'−1',c:'neg'},{v:'1',c:'pos-lo'},{v:'1',c:'pos-lo'},{v:'0',c:'zero'},{v:'1',c:'pos-lo'},{v:'2',c:'pos-md'}],
-    kLabel: 'Emboss (3×3)',
-    eq: 'E = I * k<sub>emb</sub> + 128',
-    prop: '<strong>Asymmetric gradient</strong> — negative weights on top-left, positive on bottom-right. Output is offset by +128 so flat regions appear gray. Produces a 3D relief effect.',
-  },
-  identity: {
-    hdrClass: 'blur', hdrText: 'Identity',
-    kernel: [{v:'0',c:'zero'},{v:'0',c:'zero'},{v:'0',c:'zero'},{v:'0',c:'zero'},{v:'1',c:'pos-hi'},{v:'0',c:'zero'},{v:'0',c:'zero'},{v:'0',c:'zero'},{v:'0',c:'zero'}],
-    kLabel: 'Identity (3×3)',
-    eq: 'I * identity = I',
-    prop: '<strong>Centre = 1, all others = 0</strong> — the filter copies the centre pixel unchanged. Output equals input exactly, making this a useful baseline for checking a processing pipeline.',
-  },
-};
-
-function renderFbFilterDetail(id) {
-  const el = document.getElementById('fbFilterDetail');
-  if (!el) return;
-  const d = FILTER_MATH_DETAIL[id];
-  if (!d) { el.innerHTML = ''; return; }
-  const cells = d.kernel.map(c => `<span class="fb-cell fb-cell--${c.c}">${c.v}</span>`).join('');
-  el.innerHTML = `
-    <div class="fb-filter-card fb-filter-card--live">
-      <span class="fb-filter-header fb-filter-header--${d.hdrClass}">${d.hdrText}</span>
-      <div class="fb-filter-card-body">
-        <div class="fb-kernel">
-          <div class="fb-kernel-grid">${cells}</div>
-          <div class="fb-kernel-label">${d.kLabel}</div>
-        </div>
-        <div class="fb-math">
-          <div class="fb-math-eq">${d.eq}</div>
-          <p class="fb-math-prop">${d.prop}</p>
-        </div>
-      </div>
-    </div>
-  `;
+  mkLabel('Used in Canny:');
+  mkPill('blur');
+  mkPill('sobel');
+  mkLabel('Explore:');
+  Object.entries(FILTERS).forEach(([id, f]) => { if (f.group) mkPill(id); });
 }
 
 function selectFilter(id) {
   curF = id;
   document.querySelectorAll('#fpills .pill').forEach(p => p.classList.toggle('on', p.dataset.filter === id));
   const f = FILTERS[id];
+
+  // Primary kernel
+  const lbl = document.getElementById('kgrid-label');
+  if (lbl) lbl.textContent = f.kd2 ? 'Kernel X' : 'Kernel';
   renderFilterKernel(f.kd || f.k, 3, f.kl);
+
+  // Second kernel (Sobel Y only)
+  const wrap2 = document.getElementById('kgrid2-wrap');
+  if (wrap2) {
+    if (f.kd2) {
+      wrap2.style.display = '';
+      renderFilterKernel2(f.kd2, 3);
+    } else {
+      wrap2.style.display = 'none';
+    }
+  }
+
   document.getElementById('fdesc').textContent = f.desc;
-  document.getElementById('p1-outlabel').textContent = 'Output — ' + f.label;
+  document.getElementById('p1-outlabel').textContent = f.kd2 ? 'Output — Gradient Magnitude' : 'Output — ' + f.label;
+  document.getElementById('sobelDisplayConvention').style.display = id === 'sobel' ? '' : 'none';
   renderCalcExample(id, f);
-  renderFbFilterDetail(id);
   applyFilter();
+}
+
+function renderFilterKernel2(k, ks) {
+  const g = document.getElementById('kgrid2');
+  if (!g) return;
+  g.style.gridTemplateColumns = `repeat(${ks}, 34px)`;
+  g.innerHTML = '';
+  const mx = Math.max(...k.map(Math.abs));
+  k.forEach(v => {
+    const { bg, col } = kCellColor(v, mx);
+    const d = document.createElement('div');
+    d.className = 'kernel-cell';
+    d.style.cssText = `width:34px;height:28px;background:${bg};color:${col}`;
+    d.textContent = Number.isInteger(v) ? v : v.toFixed(2);
+    g.appendChild(d);
+  });
 }
 
 function renderFilterKernel(k, ks, label) {
@@ -559,46 +533,34 @@ function renderCalcExample(id, f, activeOutput = 0) {
   const k = f.kd || f.k;
   const div = f.div || 1;
   const isEmboss = id === 'emboss';
+  const isGaussian = id === 'blur';
 
-  const CELL = 36, CELL_H = 32;
+  // Dynamic cell sizes — computed from the actual container width so the row
+  // always fits without a scrollbar, regardless of viewport or card size.
+  const COL_GAP = 8;
+  const containerW = el.offsetWidth || 560;
+  // Available for 4 matrix columns: subtract 6 column-gaps, two operators
+  // (~16px each), a minimum arrow width (64px), and left padding (4px).
+  const matrixTotalW = Math.max(200, containerW - 4 - 6 * COL_GAP - 32 - 64);
+  const S = Math.floor(matrixTotalW / 4); // equal target width per matrix block
+  const C_IN = Math.min(30, Math.max(14, Math.floor((S - 9) / 4))); // 4×4 cell
+  const C_K  = Math.min(38, Math.max(16, Math.floor((S - 6) / 3))); // 3×3 cell
+  const C_2  = Math.min(50, Math.max(22, Math.floor((S - 3) / 2))); // 2×2 cell
+  const GAP = 3;
+
   const windowColors = ['#f59e0b', '#3b82f6', '#10b981', '#a855f7'];
-
   const activeRow = Math.floor(activeOutput / 2);
   const activeCol = activeOutput % 2;
 
-  const mkGrid = (vals, isKernel, cols = 3, activeSize = 0) => {
-    const mx2 = isKernel ? Math.max(...k.map(Math.abs)) : 0;
-    const g = document.createElement('div');
-    g.style.cssText = `display:inline-grid;grid-template-columns:repeat(${cols},${CELL}px);gap:3px;flex-shrink:0;position:relative`;
-    vals.forEach((v, index) => {
-      const d = document.createElement('div');
-      let bg, col;
-      if (isKernel) {
-        const c2 = kCellColor(v, mx2);
-        bg = c2.bg; col = c2.col;
-      } else {
-        const lum = Math.round(92 - v / 255 * 76);
-        bg = `hsl(0,0%,${lum}%)`; col = lum > 58 ? '#111827' : '#f9fafb';
-      }
-      d.style.cssText = `width:${CELL}px;height:${CELL_H}px;display:flex;align-items:center;justify-content:center;font-family:'ui-monospace','SF Mono','Fira Code',monospace;font-size:13px;font-weight:700;border-radius:3px;background:${bg};color:${col}`;
-      const row = Math.floor(index / cols), cellCol = index % cols;
-      if (!isKernel && activeSize && (row < activeRow || row >= activeRow + activeSize || cellCol < activeCol || cellCol >= activeCol + activeSize)) {
-        d.style.opacity = '.38';
-      }
-      d.textContent = Number.isInteger(v) ? v : v.toFixed(2);
-      g.appendChild(d);
-    });
-    if (!isKernel && activeSize) {
-      [0, 1, 2, 3].forEach(outputIndex => {
-        const row = Math.floor(outputIndex / 2), col = outputIndex % 2;
-        const outline = document.createElement('div');
-        outline.className = 'calc-window-outline' + (outputIndex === activeOutput ? ' on' : '');
-        outline.style.cssText = `left:${col * (CELL + 3) - 2}px;top:${row * (CELL_H + 3) - 2}px;width:${activeSize * CELL + (activeSize - 1) * 3}px;height:${activeSize * CELL_H + (activeSize - 1) * 3}px;border-color:${windowColors[outputIndex]}`;
-        g.appendChild(outline);
-      });
-    }
-    return g;
+  const postNoteMap = {
+    blur:      'divide by 16',
+    laplacian: 'clip negatives to 0',
+    emboss:    'add +128 offset',
+    identity:  'no adjustment',
+    sharpen:   'clamp to [0, 255]',
+    sobel:     '√(Gx² + Gy²)'
   };
+  const postNote = postNoteMap[id] || 'no adjustment';
 
   const calculateOutput = (outputIndex) => {
     const row = Math.floor(outputIndex / 2), col = outputIndex % 2;
@@ -607,59 +569,162 @@ function renderCalcExample(id, f, activeOutput = 0) {
     flat.forEach((v, i) => sum += v * k[i]);
     const raw = sum / div;
     const shifted = raw + (isEmboss ? 128 : 0);
-    return { flat, sum, raw, shifted, out: clampPixel(shifted) };
+    return { sum, out: clampPixel(shifted) };
   };
   const outputs = [0, 1, 2, 3].map(calculateOutput);
-  const { flat, sum, raw, shifted, out } = outputs[activeOutput];
 
-  // Top row: input patch * kernel
-  const row = document.createElement('div');
-  row.style.cssText = 'display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px';
-  row.appendChild(mkGrid(patch.flat(), false, 4, 3));
-  const star = document.createElement('span');
-  star.style.cssText = 'font-size:1.4rem;color:var(--gold);flex-shrink:0;font-weight:700';
-  star.textContent = '*';
-  row.appendChild(star);
-  row.appendChild(mkGrid(k, true));
-  const equals = document.createElement('span');
-  equals.style.cssText = 'font-size:1.4rem;color:var(--gold);flex-shrink:0;font-weight:700';
-  equals.textContent = '=';
-  row.appendChild(equals);
-  const outputWrap = document.createElement('div');
-  outputWrap.className = 'calc-output-wrap';
-  outputWrap.innerHTML = '<small>Output 2×2</small>';
-  const outputGrid = document.createElement('div');
-  outputGrid.className = 'calc-output-grid';
-  outputs.forEach(({ out: value }, index) => {
-    const cell = document.createElement('div');
-    cell.className = 'calc-output-cell' + (index === activeOutput ? ' on' : '');
-    cell.style.setProperty('--window-color', windowColors[index]);
-    cell.style.setProperty('--output-lum', `${Math.round(92 - value / 255 * 76)}%`);
-    cell.style.color = value < 115 ? '#111827' : '#f9fafb';
-    cell.textContent = value;
-    cell.setAttribute('aria-label', `Output row ${Math.floor(index / 2) + 1}, column ${index % 2 + 1}: ${value}`);
-    outputGrid.appendChild(cell);
-  });
-  outputWrap.appendChild(outputGrid);
-  outputWrap.insertAdjacentHTML('beforeend', '<span class="calc-output-hint">Matching colors link each output to its input window. Sliding automatically.</span>');
-  row.appendChild(outputWrap);
-  el.appendChild(row);
+  // ── Layout: 7-column × 3-row CSS grid ─────────────────────────────
+  // padding-left: 6px so the window-outline's -2px left overhang is never
+  // clipped (outline sits at 4px inside the grid's padding box).
+  const grid = document.createElement('div');
+  grid.style.cssText = [
+    'display:grid',
+    'grid-template-columns:auto auto auto auto auto 1fr auto',
+    'grid-template-rows:auto auto',
+    `column-gap:${COL_GAP}px`,
+    'row-gap:0',
+    'align-items:center',
+    'padding-left:4px',
+    'overflow-x:auto',
+  ].join(';');
 
-  const note = document.createElement('p');
-  note.className = 'calc-example-note';
-  note.textContent = f.exNote;
-  el.appendChild(note);
+  // ── Cell helpers ──────────────────────────────────────────────────
 
-  // Bottom: full equation
-  const eq = document.createElement('div');
-  const shownTerms = flat.map((v,i) => v !== 0 && k[i] !== 0 ? `${v}×${formatNumber(k[i])}` : null).filter(Boolean);
-  eq.style.cssText = `font-family:'ui-monospace','SF Mono','Fira Code',monospace;font-size:0.9rem;line-height:1.85;color:#9ca3af;background:#374151;padding:10px 14px;border-radius:5px;border-left:3px solid #f59e0b;white-space:pre-wrap`;
-  eq.textContent = '= ' + shownTerms.join(' + ') + '  (zero terms omitted)'
-    + `\n= ${formatNumber(sum)}`
-    + (div !== 1 ? ` ÷ ${div}\n= ${formatNumber(raw)}` : '')
-    + (isEmboss ? ` + 128\n= ${formatNumber(shifted)}` : '')
-    + (formatOutputAdjustment(shifted, out) || ` → output[${activeRow}][${activeCol}]: ${out}`);
-  el.appendChild(eq);
+  const mkLbl = (text) => {
+    const d = document.createElement('div');
+    d.className = 'comp-section-label';
+    d.style.cssText = 'text-align:center;margin:0 0 .35rem;justify-self:center';
+    d.textContent = text;
+    return d;
+  };
+  const mkEmpty = () => document.createElement('div');
+
+  const mkOpCell = (sym) => {
+    const d = document.createElement('div');
+    d.style.cssText = 'font-size:1.25rem;color:var(--gold);font-weight:700;text-align:center;justify-self:center;align-self:center;font-family:var(--mono)';
+    d.textContent = sym;
+    return d;
+  };
+
+  // 4×4 input — square cells → square panel
+  const mkInputGrid = () => {
+    const g = document.createElement('div');
+    g.style.cssText = `display:inline-grid;grid-template-columns:repeat(4,${C_IN}px);gap:${GAP}px;position:relative;justify-self:center`;
+    const mx = Math.max(...patch.flat()) || 1;
+    patch.flat().forEach((v, index) => {
+      const row = Math.floor(index / 4), cellCol = index % 4;
+      const lum = Math.round(92 - v / mx * 76);
+      const d = document.createElement('div');
+      d.style.cssText = `width:${C_IN}px;height:${C_IN}px;display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-size:11px;font-weight:700;border-radius:3px;background:hsl(0,0%,${lum}%);color:${lum > 58 ? '#111827' : '#f9fafb'}`;
+      if (row < activeRow || row >= activeRow + 3 || cellCol < activeCol || cellCol >= activeCol + 3) d.style.opacity = '.35';
+      d.textContent = v;
+      g.appendChild(d);
+    });
+    [0,1,2,3].forEach(oi => {
+      const row = Math.floor(oi / 2), col = oi % 2;
+      const outline = document.createElement('div');
+      outline.className = 'calc-window-outline' + (oi === activeOutput ? ' on' : '');
+      // -2px offsets extend the outline 2px outside the 3×3 window area;
+      // the 6px grid padding-left ensures these are not clipped.
+      outline.style.cssText = `left:${col*(C_IN+GAP)-2}px;top:${row*(C_IN+GAP)-2}px;width:${3*C_IN+2*GAP+4}px;height:${3*C_IN+2*GAP+4}px;border-color:${windowColors[oi]}`;
+      g.appendChild(outline);
+    });
+    return g;
+  };
+
+  // 3×3 kernel — square cells → square panel; always shows raw integer weights
+  const mkKernelGrid = () => {
+    const mx = Math.max(...k.map(Math.abs)) || 1;
+    const g = document.createElement('div');
+    g.style.cssText = `display:inline-grid;grid-template-columns:repeat(3,${C_K}px);gap:${GAP}px`;
+    k.forEach(v => {
+      const { bg, col } = kCellColor(v, mx);
+      const d = document.createElement('div');
+      d.style.cssText = `width:${C_K}px;height:${C_K}px;display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-size:12px;font-weight:600;border-radius:3px;background:${bg};color:${col}`;
+      d.textContent = Number.isInteger(v) ? v : v.toFixed(2);
+      g.appendChild(d);
+    });
+    return g;
+  };
+
+  // 2×2 filter response — square cells → square panel; signed coloring
+  const mkFRGrid = (values) => {
+    const mx = Math.max(...values.map(Math.abs)) || 1;
+    const g = document.createElement('div');
+    g.style.cssText = `display:grid;grid-template-columns:repeat(2,${C_2}px);gap:${GAP}px;justify-self:center`;
+    values.forEach(v => {
+      const { bg, col } = kCellColor(v, mx);
+      const d = document.createElement('div');
+      d.style.cssText = `width:${C_2}px;height:${C_2}px;display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-size:13px;font-weight:700;border-radius:3px;background:${bg};color:${col}`;
+      d.textContent = Number.isInteger(v) ? v : v.toFixed(1);
+      g.appendChild(d);
+    });
+    return g;
+  };
+
+  // 2×2 output — square cells → square panel; colored border per window
+  const mkOutputGrid = (values) => {
+    const g = document.createElement('div');
+    g.style.cssText = `display:grid;grid-template-columns:repeat(2,${C_2}px);gap:${GAP}px;justify-self:center`;
+    values.forEach((v, i) => {
+      const lum = Math.round(92 - v / 255 * 76);
+      const d = document.createElement('div');
+      d.className = 'calc-output-cell' + (i === activeOutput ? ' on' : '');
+      d.style.setProperty('--window-color', windowColors[i]);
+      d.style.setProperty('--output-lum', `${lum}%`);
+      d.style.cssText += `;width:${C_2}px;height:${C_2}px;font-size:13px`;
+      d.style.color = v < 115 ? '#111827' : '#f9fafb';
+      d.textContent = v;
+      g.appendChild(d);
+    });
+    return g;
+  };
+
+  // Arrow — line + note stacked in one cell; the note sits directly under
+  // the arrowhead so it reads as attached to the transformation.
+  const mkArrowLine = () => {
+    const wrap = document.createElement('div');
+    wrap.style.cssText = 'display:flex;flex-direction:column;align-items:center;align-self:center;width:100%;gap:3px';
+    const arrowRow = document.createElement('div');
+    arrowRow.style.cssText = 'display:flex;align-items:center;width:100%';
+    const line = document.createElement('div');
+    line.style.cssText = 'flex:1;height:2px;background:var(--border-med)';
+    const tip = document.createElement('span');
+    tip.textContent = '▶';
+    tip.style.cssText = 'color:var(--border-med);font-size:.6rem;flex-shrink:0';
+    arrowRow.appendChild(line);
+    arrowRow.appendChild(tip);
+    const note = document.createElement('div');
+    note.style.cssText = 'font-size:.64rem;color:var(--muted);font-family:var(--mono);white-space:nowrap;text-align:center;line-height:1';
+    note.textContent = postNote;
+    wrap.appendChild(arrowRow);
+    wrap.appendChild(note);
+    return wrap;
+  };
+
+  // ── Assemble ──────────────────────────────────────────────────────
+  const frVals  = outputs.map(o => o.sum);
+  const outVals = outputs.map(o => o.out);
+
+  // Row 1 — labels
+  grid.appendChild(mkLbl('INPUT (4×4)'));
+  grid.appendChild(mkEmpty());
+  grid.appendChild(mkLbl('KERNEL (3×3)'));
+  grid.appendChild(mkEmpty());
+  grid.appendChild(mkLbl('FILTER RESPONSE'));
+  grid.appendChild(mkEmpty());
+  grid.appendChild(mkLbl('OUTPUT'));
+
+  // Row 2 — all content; each cell vertically centered at the same axis
+  grid.appendChild(mkInputGrid());
+  grid.appendChild(mkOpCell('*'));   // plain asterisk per spec
+  grid.appendChild(mkKernelGrid());
+  grid.appendChild(mkOpCell('='));
+  grid.appendChild(mkFRGrid(frVals));
+  grid.appendChild(mkArrowLine());
+  grid.appendChild(mkOutputGrid(outVals));
+
+  el.appendChild(grid);
 
   calcExampleTimer = setTimeout(() => {
     if (curF === id) renderCalcExample(id, f, (activeOutput + 1) % 4);
@@ -744,8 +809,8 @@ dc.addEventListener('touchend', () => drawing=false);
 ────────────────────────────────────────── */
 const NMS_PRESETS = [
   { label: 'Keep the peak', values: [2, 5, 9, 4, 1] },
-  { label: 'Remove a weaker pixel', values: [2, 8, 5, 7, 1] },
-  { label: 'Keep equal peaks', values: [1, 4, 7, 7, 2] }
+  { label: 'Suppress a non-peak pixel', values: [2, 8, 5, 7, 1] },
+  { label: 'Tie case: equal peaks', values: [1, 4, 7, 7, 2] }
 ];
 let activeNmsPreset = 0;
 
@@ -775,7 +840,7 @@ function renderNmsProfile(values) {
   const left = values[ci - 1], center = values[ci], right = values[ci + 1];
   const keep = center >= left && center >= right;
   const maxVal = Math.max(...values) || 1;
-  const ROLES = ['', 'neighbour', 'candidate', 'neighbour', ''];
+  const ROLES = ['', 'comparison sample', 'candidate', 'comparison sample', ''];
 
   profile.innerHTML = values.map((v, i) => {
     const role = ROLES[i];
@@ -791,8 +856,8 @@ function renderNmsProfile(values) {
 
   const equalNeighbour = keep && (center === left || center === right);
   const verdict = keep
-    ? (equalNeighbour ? 'Keep — non-strict local maximum (tied with a neighbour; this implementation uses ≥, so ties are kept).' : 'Keep — this pixel is a local maximum.')
-    : 'Suppress — a neighbour is stronger.';
+    ? (equalNeighbour ? 'Keep — tied with a neighbour. This demo uses ≥, so equal peaks are both kept. Some implementations use strict > to ensure single-pixel thinning.' : 'Keep — this pixel is a local maximum.')
+    : 'Suppress — a neighbour is stronger, so this pixel is not a local maximum.';
   comparison.className = `nms-comparison ${keep ? 'nms-comparison--keep' : 'nms-comparison--suppress'}`;
   comparison.innerHTML = `
     <strong>NMS(${center}) = ${keep ? center : 0}</strong>
@@ -810,13 +875,16 @@ function buildNmsPixelPanel() {
   if (!controls || !beforeCv || !afterCv) return;
   controls.innerHTML = '';
   [
-    { id: 'vertical', label: 'Vertical edge' },
-    { id: 'horizontal', label: 'Horizontal edge' },
-    { id: 'diagonal', label: 'Diagonal edge' }
+    { id: 'vertical',   label: 'Vertical edge',         sub: 'compare horizontally',           detail: 'left / right of candidate' },
+    { id: 'horizontal', label: 'Horizontal edge',        sub: 'compare vertically',             detail: 'above / below candidate' },
+    { id: 'diagonal',   label: 'Diagonal / other angle', sub: 'interpolate comparison samples', detail: 'samples fall between pixels' }
   ].forEach(option => {
     const button = document.createElement('button');
-    button.className = 'pill' + (option.id === nmsPixelOrientation ? ' on' : '');
-    button.textContent = option.label;
+    button.className = 'nms-orient-btn' + (option.id === nmsPixelOrientation ? ' on' : '');
+    button.innerHTML =
+      `<strong>${option.label}</strong>` +
+      `<span class="orient-sub">${option.sub}</span>` +
+      `<span class="orient-detail">${option.detail}</span>`;
     button.onclick = () => {
       nmsPixelOrientation = option.id;
       buildNmsPixelPanel();
@@ -1010,9 +1078,7 @@ function updateDTGeometry(lo, hi) {
   document.getElementById('dtDiscardLabel').style.left = `${center(0, lo)}px`;
   document.getElementById('dtWeakLabel').style.left = `${center(lo, hi)}px`;
   document.getElementById('dtStrongLabel').style.left = `${center(hi, 100)}px`;
-  setPill('dtDiscardPill', axisStart);
-  setPill('dtWeakPill', axisStart + axisLength / 2);
-  setPill('dtStrongPill', axisEnd);
+  // Pill counters stay at fixed flex positions (left / center / right) — no dynamic positioning needed.
 }
 
 function updateDT(changed) {
@@ -1061,9 +1127,9 @@ const cinctx = cin.getContext('2d'), coutctx = cout.getContext('2d');
 const p3inCv = document.getElementById('p3in'), p3outCv = document.getElementById('p3out');
 const p3inctx = p3inCv.getContext('2d'), p3outctx = p3outCv.getContext('2d');
 
-let curSrc = 'sample', camStream = null, camRunning = false, rafId = null, wasWebcamRunning = false;
+let curSrc = 'sample', camStream = null, camRunning = false, rafId = null;
 let curTuneSrc = 'sample', tuneCamStream = null, tuneCamRunning = false, tuneRafId = null;
-let curSampleIdx = 0, curTuneSampleIdx = 0, tuningUnlocked = true, activeStep = 0, activeTuneStep = 0;
+let curSampleIdx = 0, curTuneSampleIdx = 0, activeStep = 0, activeTuneStep = 0;
 
 const STEP_LABELS = [
   'Blur',
@@ -1074,11 +1140,11 @@ const STEP_LABELS = [
 ];
 
 const STEP_DESCS = [
-  'Gaussian blur reduces noise and small details. High σ = smoother edges.',
-  'Sobel filters detect intensity changes. Shows raw edge strength.',
-  'Non-Maximum Suppression keeps local peaks along the gradient direction, thinning thick edge responses.',
-  'Double thresholding identifies strong (white) and weak (blue) edges.',
-  'Hysteresis keeps weak edges only when they connect to strong edges.'
+  'Gaussian blur smooths the image before edge detection. A larger σ reduces noise and fine detail but can merge nearby edges.',
+  'Sobel filters measure horizontal (Gx) and vertical (Gy) intensity changes. The output shows gradient magnitude √(Gx²+Gy²), scaled to the image maximum for display — brighter pixels indicate stronger edge responses.',
+  'Non-Maximum Suppression thins the gradient ridge: for each pixel, magnitude is compared with two neighbours across the gradient direction. Only local maxima are kept.',
+  'Double thresholding classifies edge candidates by strength. White = strong edge (response ≥ T_hi); blue = weak edge (T_lo ≤ response < T_hi); black = discarded.',
+  'Strong-edge pixels are kept unconditionally as confirmed edges and act as anchors. The algorithm traces outward from each anchor: a weak-edge pixel survives only if it connects — directly or through a chain of other weak pixels — to a strong anchor. Isolated weak pixels with no strong connection are discarded as likely noise, not real edges.'
 ];
 
 // Cross-reference links shown below each step note
@@ -1087,7 +1153,7 @@ const STEP_REFS = [
   { href: '#filter-sobel', section: '02 — Sobel Edge Detection',       question: 'How does the Sobel filter work?', filter: 'sobel' },
   { href: '#part2', section: '03 — Non-Maximum Suppression',   question: 'How does NMS work?' },
   { href: '#part3', section: '04 — Double Thresholding',       question: 'How does double thresholding work?' },
-  { href: '#part3', section: '04 — Double Thresholding',       question: 'How does hysteresis use the weak/strong split?' },
+  { href: '#part3', section: '04 — Double Thresholding',       question: 'How are weak and strong edges defined?' },
 ];
 
 function renderStepRef(ref, containerId) {
@@ -1104,21 +1170,21 @@ function setStepNote() {
   const t = document.getElementById('p2-note-text');
   if (t) t.textContent = STEP_DESCS[activeStep] || '';
   renderStepRef(STEP_REFS[activeStep], 'p2-step-ref');
+  const label = document.getElementById('p2-outlabel');
+  if (label) label.textContent = `${STEP_LABELS[activeStep]} Output`;
 }
 
 function setTuningStepNote() {
-  const t = document.getElementById('tuning-note-text');
-  if (t) t.textContent = STEP_DESCS[activeTuneStep] || '';
-  renderStepRef(STEP_REFS[activeTuneStep], 'tuning-step-ref');
-
   const label = document.getElementById('p3-outlabel');
   if (label) label.textContent = `${STEP_LABELS[activeTuneStep]} Output`;
 
   const controlsNote = document.getElementById('tuning-controls-note');
   if (!controlsNote) return;
   controlsNote.textContent = activeTuneStep < 3
-    ? 'Adjust σ to see how smoothing changes this stage. Threshold values are editable now, but begin affecting the image at step 4.'
-    : 'Adjust σ, the strong edge threshold, and the hysteresis ratio. Each change updates this stage immediately.';
+    ? ''
+    : activeTuneStep === 3
+      ? 'T_low and T_high now classify gradient responses into discarded, weak, and strong edge pixels.'
+      : 'Hysteresis uses the current weak / strong split: strong edges are kept, and connected weak edges survive.';
 }
 
 function buildSharedStepBar() {
@@ -1182,7 +1248,7 @@ function buildTuningStepBar() {
   setTuningStepNote();
 }
 
-function renderCannyStage(sourceCtx, outputCtx, w, h, step, sigma, thi, tloR) {
+function renderCannyStage(sourceCtx, outputCtx, w, h, step, sigma, thi, tlo) {
   const g = getGray(sourceCtx.getImageData(0,0,w,h), w, h);
   const b = gaussBlur(g, w, h, sigma);
   if (step === 0) { putGrayF(outputCtx, b, w, h); return; }
@@ -1192,25 +1258,39 @@ function renderCannyStage(sourceCtx, outputCtx, w, h, step, sigma, thi, tloR) {
 
   const nms = applyNMS(mag, dir, w, h);
   if (step === 2) { putGrayF(outputCtx, nms, w, h, maxMag); return; }
-  if (step === 3) { putThr(outputCtx, nms, w, h, maxMag, thi, tloR); return; }
+  if (step === 3) { putThr(outputCtx, nms, w, h, maxMag, thi, tlo); return; }
 
-  const final = runHysteresis(nms, w, h, maxMag, thi, tloR);
+  const final = runHysteresis(nms, w, h, maxMag, thi, tlo);
   putBin(outputCtx, final, w, h);
 }
 
-function p3update() {
-  const sigma = tuningUnlocked ? +document.getElementById('p3sigma').value : 1.4;
-  const thi = (tuningUnlocked ? +document.getElementById('p3thi').value : 30) / 100;
-  const tloR = (tuningUnlocked ? +document.getElementById('p3tlo').value : 33) / 100;
-
-  if (tuningUnlocked) {
-    document.getElementById('p3sv').textContent = sigma.toFixed(1);
-    document.getElementById('p3thv').textContent = Math.round(thi*100) + '%';
-    document.getElementById('p3tlv').textContent = Math.round(tloR*100) + '%';
+function p3ThreshInput(which) {
+  const loEl = document.getElementById('p3tlo');
+  const hiEl = document.getElementById('p3thi');
+  let lo = +loEl.value, hi = +hiEl.value;
+  if (which === 'lo') {
+    lo = Math.min(lo, hi - 1);
+    loEl.value = lo;
+  } else {
+    hi = Math.max(hi, lo + 1);
+    hiEl.value = hi;
   }
+  p3TloVal = lo;
+  p3ThiVal = hi;
+  p3update();
+}
 
-  renderCannyStage(cinctx, coutctx, cin.width, cin.height, activeStep, 1.4, .3, .33);
-  renderCannyStage(p3inctx, p3outctx, p3inCv.width, p3inCv.height, activeTuneStep, sigma, thi, tloR);
+function p3update() {
+  const sigma = +document.getElementById('p3sigma').value;
+  const thi = p3ThiVal / 100;
+  const tlo = p3TloVal / 100;
+
+  document.getElementById('p3sv').textContent = sigma.toFixed(1);
+  document.getElementById('p3tlv').textContent = p3TloVal + '%';
+  document.getElementById('p3thv').textContent = p3ThiVal + '%';
+
+  renderCannyStage(cinctx, coutctx, cin.width, cin.height, activeStep, 1.4, .3, .10);
+  renderCannyStage(p3inctx, p3outctx, p3inCv.width, p3inCv.height, activeTuneStep, sigma, thi, tlo);
 }
 
 function loadImgToCanny(src) {
@@ -1252,8 +1332,6 @@ function loadImgToTuning(src) {
   img.crossOrigin = 'anonymous';
   img.onload = () => {
     p3inctx.drawImage(img, 0, 0, p3inCv.width, p3inCv.height);
-    if (curTuneSrc === 'sample' && curTuneSampleIdx === 0) computeGoldStandard();
-    else goldStandard = null;
     p3update();
   };
   img.src = src;
@@ -1275,136 +1353,6 @@ function buildTuningSamplePills() {
     };
     c.appendChild(p);
   });
-}
-
-/* Quiz logic */
-let goldStandard = null;
-const QUIZ_GOLD  = { sigma: 1, thi: 0.28, tloR: 0.38 };
-const QUIZ_START = { sigma: 4, thi: 60,   tlo: 20    };
-
-function computeGoldStandard() {
-  const w = p3inCv.width, h = p3inCv.height;
-  const g = getGray(p3inctx.getImageData(0,0,w,h), w, h);
-  const b = gaussBlur(g, w, h, QUIZ_GOLD.sigma);
-  const { mag, dir, maxMag } = computeSobel(b, w, h);
-  const nms = applyNMS(mag, dir, w, h);
-  goldStandard = runHysteresis(nms, w, h, maxMag, QUIZ_GOLD.thi, QUIZ_GOLD.tloR);
-}
-
-function computeQuizScore(userMask) {
-  if (!goldStandard || !userMask) return 0;
-  let inter = 0, union = 0;
-  for (let i = 0; i < goldStandard.length; i++) {
-    const g = goldStandard[i] > 0 ? 1 : 0;
-    const u = userMask[i] > 0 ? 1 : 0;
-    if (g && u) inter++;
-    if (g || u) union++;
-  }
-  return union === 0 ? 0 : Math.round(inter / union * 100);
-}
-
-function quizUpdate() {
-  const sigma = +document.getElementById('quizSigma').value;
-  const thi   = +document.getElementById('quizThi').value / 100;
-  const tloR  = +document.getElementById('quizTlo').value / 100;
-  document.getElementById('quizSigmaBadge').textContent = sigma;
-  document.getElementById('quizThiBadge').textContent   = Math.round(thi  * 100) + '%';
-  document.getElementById('quizTloBadge').textContent   = Math.round(tloR * 100) + '%';
-  const w = p3inCv.width, h = p3inCv.height;
-  const g = getGray(p3inctx.getImageData(0,0,w,h), w, h);
-  const b = gaussBlur(g, w, h, sigma);
-  const { mag, dir, maxMag } = computeSobel(b, w, h);
-  const nms = applyNMS(mag, dir, w, h);
-  const result = runHysteresis(nms, w, h, maxMag, thi, tloR);
-  putBin(p3outctx, result, w, h);
-  const qOut = document.getElementById('quizOut');
-  if (qOut) qOut.getContext('2d').drawImage(p3outCv, 0, 0, qOut.width, qOut.height);
-  const score = computeQuizScore(result);
-  updateQuizMatchUI(score);
-
-  if (score >= 88 && !window.quizSolved) {
-    window.quizSolved = true;
-
-    setTimeout(() => {
-      showQuizPass();
-    }, 300);
-  }
-}
-
-function updateQuizMatchUI(score) {
-  const fill  = document.getElementById('quizMatchFill');
-  const label = document.getElementById('quizMatchLabel');
-  if (!fill || !label) return;
-  fill.style.width = score + '%';
-  if (score >= 88) {
-    fill.style.background = 'var(--accent)';
-    label.textContent = 'Perfect match!';
-    label.style.color = 'var(--accent)';
-  } else if (score >= 68) {
-    fill.style.background = '#3b82f6';
-    label.textContent = 'Very close — keep fine-tuning';
-    label.style.color = 'var(--ink)';
-  } else if (score >= 44) {
-    fill.style.background = '#93c5fd';
-    label.textContent = 'Getting closer...';
-    label.style.color = 'var(--muted2)';
-  } else {
-    fill.style.background = 'var(--border-med)';
-    label.textContent = 'Adjust the sliders to begin';
-    label.style.color = 'var(--muted)';
-  }
-}
-
-function renderQuizTarget() {
-  const tgt = document.getElementById('quizTarget');
-  if (!tgt || !goldStandard) return;
-  const w = p3inCv.width, h = p3inCv.height;
-  putBin(p3outctx, goldStandard, w, h);
-  tgt.getContext('2d').drawImage(p3outCv, 0, 0, tgt.width, tgt.height);
-}
-
-function initQuizPage() {
-  // Remember if webcam was running, stop it temporarily
-  wasWebcamRunning = camRunning;
-  if (camRunning) stopCam();
-  // Ensure success popup is hidden when quiz resets
-  const sp = document.getElementById('successPopup');
-  if (sp) sp.style.display = 'none';
-  // Load lizard, compute gold, then start quiz
-  const img = new Image();
-  img.onload = () => {
-    p3inctx.drawImage(img, 0, 0, p3inCv.width, p3inCv.height);
-    computeGoldStandard();
-    renderQuizTarget();
-    document.getElementById('quizSigma').value = QUIZ_START.sigma;
-    document.getElementById('quizThi').value   = QUIZ_START.thi;
-    document.getElementById('quizTlo').value   = QUIZ_START.tlo;
-    // Reset match bar
-    const fill  = document.getElementById('quizMatchFill');
-    const label = document.getElementById('quizMatchLabel');
-    if (fill)  { fill.style.width = '0%'; fill.style.background = 'var(--border-med)'; }
-    if (label) { label.textContent = 'Adjust the sliders to begin'; label.style.color = 'var(--muted)'; }
-    quizUpdate();
-  };
-  img.src = './lizard.jpg';
-}
-
-function enterTuning() {
-  // Quiz flow is preserved below for later reuse; tuning is currently available immediately.
-  const sp = document.getElementById('successPopup');
-  if (sp) sp.style.display = 'none';
-  closeTuningPopup();
-  tuningUnlocked = true;
-  buildSamplePills();
-  buildTuningSamplePills();
-  const pg = document.getElementById('tuning-controls-unlocked');
-  if (pg) {
-    pg.style.display = 'block';
-    setTimeout(() => {
-      pg.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    }, 300);
-  }
-  p3update();
 }
 
 function setSrc(s) {
@@ -1506,7 +1454,6 @@ function loadTuneFile(input) {
   const img = new Image();
   img.onload = () => {
     p3inctx.drawImage(img, 0, 0, p3inCv.width, p3inCv.height);
-    goldStandard = null;
     p3update();
     URL.revokeObjectURL(img.src);
   };
@@ -1555,48 +1502,6 @@ function tuneCamLoop() {
   p3inctx.drawImage(v, 0, 0, p3inCv.width, p3inCv.height);
   p3update();
   tuneRafId = requestAnimationFrame(tuneCamLoop);
-}
-
-/* Popup logic */
-function openTuningPopup() {
-  const overlay = document.getElementById('tuningPopup');
-  if (!overlay) return;
-  overlay.style.display = 'flex';
-  showPopupPage(1);
-}
-
-function closeTuningPopup() {
-  document.getElementById('tuningPopup').style.display = 'none';
-  // Resume webcam if it was running before popup
-  if (wasWebcamRunning && !camRunning && curSrc === 'cam') {
-    toggleCam();
-    wasWebcamRunning = false;
-  }
-}
-
-function popupOverlayClick(e) {
-  // Tuning popup cannot be dismissed by clicking outside — only by completing the quiz
-}
-
-function showPopupPage(n) {
-  document.getElementById('popupPage1').style.display = n === 1 ? '' : 'none';
-  document.getElementById('popupPage2').style.display = n === 2 ? '' : 'none';
-  // Toggle quiz-active on modal to lock overflow when quiz is showing
-  const modal = document.querySelector('#tuningPopup .popup-modal');
-  if (modal) modal.classList.toggle('quiz-active', n === 2);
-  if (n === 2) initQuizPage();
-}
-
-function showQuizPass() {
-  const sp = document.getElementById('successPopup');
-  if (sp) sp.style.display = 'flex';
-}
-
-function closeSuccessPopup() {
-  // Close success popup WITHOUT activating tuning bars
-  const sp = document.getElementById('successPopup');
-  if (sp) sp.style.display = 'none';
-  closeTuningPopup(); // also close the quiz popup behind it
 }
 
 /* ── Canny math ── */
@@ -1661,8 +1566,8 @@ function applyNMS(mag, dir, w, h) {
   return out;
 }
 
-function runHysteresis(nms, w, h, maxMag, thi, tloR) {
-  const hi = maxMag*thi, lo = maxMag*thi*tloR;
+function runHysteresis(nms, w, h, maxMag, thi, tlo) {
+  const hi = maxMag*thi, lo = maxMag*tlo;
   const s = new Uint8Array(w*h);
   for (let i = 0; i < w*h; i++) { if (nms[i] >= hi) s[i]=2; else if (nms[i] >= lo) s[i]=1; }
   const stack = []; for (let i = 0; i < w*h; i++) if (s[i]===2) stack.push(i);
@@ -1695,8 +1600,8 @@ function putBin(ctx, d, w, h) {
   }
   ctx.putImageData(id, 0, 0);
 }
-function putThr(ctx, nms, w, h, maxMag, thi, tloR) {
-  const hi=maxMag*thi, lo=maxMag*thi*tloR;
+function putThr(ctx, nms, w, h, maxMag, thi, tlo) {
+  const hi=maxMag*thi, lo=maxMag*tlo;
   const id = ctx.createImageData(w, h);
   for (let i = 0; i < w*h; i++) {
     if (nms[i]>=hi)      { id.data[i*4]=255; id.data[i*4+1]=255; id.data[i*4+2]=255; }
@@ -1709,6 +1614,7 @@ function putThr(ctx, nms, w, h, maxMag, thi, tloR) {
 
 
 
+let p3ThiVal = 30, p3TloVal = 10;
 /* ──────────────────────────────────────────
    INIT
 ────────────────────────────────────────── */

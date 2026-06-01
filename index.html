@@ -62,6 +62,8 @@
     </div>
   </div>
 
+  <p class="anim-note" style="max-width:var(--max-w);margin:0 auto 1.5rem;border-left:3px solid var(--accent);padding:.55rem 1rem;background:var(--accent-soft);border-radius:0 var(--rad-sm) var(--rad-sm) 0;font-size:.88rem"><strong>Convention — convolution vs. cross-correlation:</strong> Most image-processing libraries implement cross-correlation but still call it convolution. This demo follows that common convention; for symmetric kernels like blur, flipping the kernel would not change the result.</p>
+
   <div class="concept-cards" id="part0-concepts">
     <div class="concept-card">
       <div class="concept-card-num">01</div>
@@ -78,7 +80,7 @@
       <h3>Padding</h3>
       <p>The window cannot extend beyond the grid unless extra values are added around the border.</p>
       <p style="margin-top:.6rem"><strong>None (valid):</strong> only calculate positions where the full window fits. A 2×2 window on a 3×3 input produces a 2×2 output.</p>
-      <p style="margin-top:.4rem"><strong>Zero-pad (same):</strong> add 0s around the input so the window can visit the original edge positions. With stride 1, the output keeps the input size.</p>
+      <p style="margin-top:.4rem"><strong>Zero-pad (same):</strong> add 0s around the input so the window can visit the original edge positions. With stride 1, the output keeps the input size. <em>For even-sized kernels (e.g. 2×2) padding is asymmetric because there is no single center pixel — in this demo the extra padded cells appear on the bottom and right.</em></p>
     </div>
   </div>
 
@@ -145,7 +147,6 @@
     <div class="anim-canvas-col">
       <div class="canvas-label-row">
         <span class="canvas-label">Output</span>
-        <span class="canvas-sublabel" id="outputSizeLabel">2×2</span>
       </div>
       <canvas id="animOut"></canvas>
     </div>
@@ -171,7 +172,7 @@
     </div>
     <div class="comp-operator">*</div>
     <div class="computation-kernel-col">
-      <div class="comp-section-label">Weight matrix</div>
+      <div class="comp-section-label">Kernel (weight matrix)</div>
       <div id="kernelDisplay" class="kernel-display-grid"></div>
       <div class="kernel-op-label" id="kernelOpLabel"></div>
     </div>
@@ -180,8 +181,6 @@
       <div class="comp-section-label">Computation at current position</div>
       <div class="comp-eq-line">
         <div class="comp-eq" id="animCalc">Drag the slider or press Play to step through.</div>
-        <div class="comp-eq-equals">=</div>
-        <div class="comp-eq-result" id="animInlineResult">—</div>
       </div>
     </div>
     <div class="computation-result-col">
@@ -191,7 +190,6 @@
     </div>
   </div>
   <div class="anim-note" id="animNote">Choose settings and press Play, or drag the slider.</div>
-  <p class="anim-note" style="border-left:2px solid var(--border-med);padding:.4rem .75rem;margin-top:.25rem"><strong>A note on terminology:</strong> in image processing and most libraries, "convolution" conventionally means cross-correlation — the kernel slides without being flipped 180°. For symmetric kernels (Gaussian, Laplacian, Identity) the two operations produce identical results. For asymmetric kernels like Sobel and Emboss, which appear in the next section, this unflipped convention is the standard.</p>
 
 </section>
 
@@ -207,12 +205,65 @@
     <div class="part-number">02</div>
     <div class="part-header-text">
       <h2 class="part-title">Spatial <em>Filters</em></h2>
-      <p class="part-intro">Now that the convolution operation is clear, introduce <strong>filters</strong>: each filter is a deliberate choice of weights in a convolution kernel. The sliding calculation stays the same, but different weights ask different questions about the neighbourhood.</p>
+      <p class="part-intro">Each filter is a deliberate choice of weights in a convolution kernel. Different patterns ask different questions about the pixel neighbourhood — and this section shows what each pattern reveals.</p>
+      <p class="part-intro part-intro--followup">Canny uses two of these filters in sequence: first, a Gaussian filter smooths the image; then, Sobel filters estimate horizontal and vertical intensity changes. The other filters are included for exploration.</p>
+    </div>
+  </div>
+
+  <div class="filter-pills-row">
+    <div class="filter-pills" id="fpills"></div>
+  </div>
+
+  <p class="draw-cue">Draw on the canvas, then switch filters to compare the output.</p>
+
+  <div class="draw-controls">
+    <label class="ctrl-label">Brush size</label>
+    <input type="range" id="bsz" min="2" max="28" value="10" step="1" oninput="BS=+this.value;document.getElementById('bv').textContent=this.value" class="inline-range">
+    <span class="range-val" id="bv">10</span>
+    <button class="clear-btn" onclick="clearDraw()">Clear ↺</button>
+  </div>
+
+  <div class="filter-workspace">
+    <div class="draw-area">
+      <div class="canvas-label-row">
+        <span class="canvas-label">Draw here</span>
+      </div>
+      <canvas id="dc" width="280" height="210" class="draw-canvas"></canvas>
+    </div>
+    <div class="output-area">
+      <div class="canvas-label-row">
+        <span class="canvas-label" id="p1-outlabel">Output</span>
+        <span class="canvas-sublabel" id="sobelDisplayConvention" style="display:none">Display convention: dark = strong edge</span>
+      </div>
+      <canvas id="oc" width="280" height="210" class="output-canvas"></canvas>
+    </div>
+  </div>
+
+  <div class="filter-card" id="filterCard">
+    <div class="filter-card-body">
+      <div class="filter-kernel-col">
+        <div class="comp-section-label" id="kgrid-label">Kernel</div>
+        <div id="kgrid" class="kernel-display-grid"></div>
+        <div id="kgrid2-wrap" style="display:none;margin-top:.75rem">
+          <div class="comp-section-label" style="margin-bottom:.35rem">Kernel Y</div>
+          <div id="kgrid2" class="kernel-display-grid"></div>
+        </div>
+        <div class="kernel-op-label" id="klabel"></div>
+      </div>
+      <div class="filter-desc-col">
+        <div class="comp-section-label">What this kernel computes</div>
+        <div id="fdesc" class="filter-desc-text"></div>
+      </div>
+      <div class="filter-example-col">
+        <div class="comp-section-label">Example calculation</div>
+        <div id="calcExample" class="calc-example-wrap"></div>
+      </div>
     </div>
   </div>
 
   <div class="fb-concept">
-    <p>In image processing, <strong>a filter is just a convolution with a particular kernel</strong>. The pattern of weights is a mathematical "question" asked at every pixel neighbourhood. Three patterns cover nearly all classical filters:</p>
+    <div class="comp-section-label">Kernel pattern reference</div>
+    <p>In image processing, <strong>a filter is just a convolution with a particular kernel</strong>. The pattern of weights is a mathematical "question" asked at every pixel neighbourhood.</p>
     <div class="fb-rules">
       <div class="fb-rule">
         <span class="fb-rule-tag fb-rule-tag--blur">Σw = 1, all positive</span>
@@ -229,51 +280,10 @@
         <span class="fb-rule-arrow">→</span>
         <span>amplifies the difference between a pixel and its surroundings → <strong>sharpens</strong></span>
       </div>
-    </div>
-  </div>
-
-  <p class="part-sub-intro">Canny uses two of these filters in sequence: first, a Gaussian filter smooths the image; then, Sobel filters estimate horizontal and vertical intensity changes. The other filters are included for exploration, so users can also try Laplacian, Sharpen, Emboss, and Identity to see how each one transforms the same drawing.</p>
-
-  <div class="draw-controls">
-    <label class="ctrl-label">Brush size</label>
-    <input type="range" id="bsz" min="2" max="28" value="10" step="1" oninput="BS=+this.value;document.getElementById('bv').textContent=this.value" class="inline-range">
-    <span class="range-val" id="bv">10</span>
-    <button class="clear-btn" onclick="clearDraw()">Clear ↺</button>
-  </div>
-
-  <div class="filter-pills-row">
-    <div class="filter-pills" id="fpills"></div>
-  </div>
-
-  <div class="filter-workspace">
-    <div class="draw-area">
-      <div class="canvas-label-row">
-        <span class="canvas-label">Draw here</span>
-      </div>
-      <canvas id="dc" width="280" height="210" class="draw-canvas"></canvas>
-    </div>
-    <div class="output-area">
-      <div class="canvas-label-row">
-        <span class="canvas-label" id="p1-outlabel">Output</span>
-      </div>
-      <canvas id="oc" width="280" height="210" class="output-canvas"></canvas>
-    </div>
-  </div>
-
-  <div class="filter-card" id="filterCard">
-    <div class="filter-card-body">
-      <div class="filter-kernel-col">
-        <div class="comp-section-label">Kernel</div>
-        <div id="kgrid" class="kernel-display-grid"></div>
-        <div class="kernel-op-label" id="klabel"></div>
-      </div>
-      <div class="filter-desc-col">
-        <div class="comp-section-label">What this kernel computes</div>
-        <div id="fdesc" class="filter-desc-text"></div>
-      </div>
-      <div class="filter-example-col">
-        <div class="comp-section-label">Example calculation</div>
-        <div id="calcExample" class="calc-example-wrap"></div>
+      <div class="fb-rule">
+        <span class="fb-rule-tag fb-rule-tag--emboss">Σw = 1, asymmetric mixed signs</span>
+        <span class="fb-rule-arrow">→</span>
+        <span>directional signs plus an offset create a relief effect → <strong>emboss</strong> <em>(a visual effect, not a pure derivative edge detector)</em></span>
       </div>
     </div>
   </div>
@@ -284,7 +294,7 @@
 <!-- ═══════════════════════════════════════════════════ BRIDGE -->
 <div class="bridge-section">
   <div class="bridge-inner">
-    <p class="bridge-text">Gaussian blur and Sobel reveal where image intensity changes. <em>But a raw gradient often produces thick responses.</em> Before assembling the full Canny pipeline, learn how Non-Maximum Suppression keeps only the strongest point along each edge.</p>
+    <p class="bridge-text">Gaussian blur and Sobel reveal where image intensity changes. <em>But a raw gradient often produces a thick ridge of responses across an edge.</em> Before assembling the full Canny pipeline, learn how Non-Maximum Suppression keeps only the local maximum <strong>across</strong> each gradient ridge — thinning it to a single-pixel line.</p>
   </div>
 </div>
 
@@ -302,48 +312,55 @@
   <div class="nms-rule" style="max-width:var(--max-w);margin:0 auto 1.25rem">
     <div class="comp-section-label">General rule</div>
     <div class="nms-rule-eq">NMS(p) = M(p) &nbsp;if M(p) ≥ M(p − ĝ) and M(p) ≥ M(p + ĝ) &nbsp;; &nbsp;otherwise 0</div>
-    <p class="nms-synth-copy">M is gradient magnitude. ĝ is one unit step along the gradient direction. The gradient always points perpendicular to the edge — toward the direction of maximum intensity change — so NMS compares across the edge's width, not along it. When ĝ falls between pixels, this demo interpolates the two comparison samples.</p>
+    <p class="nms-synth-copy">M is gradient magnitude. ĝ = [cosθ, sinθ] is one unit step along the gradient direction, where θ = atan2(Gy, Gx). The gradient points perpendicular to the edge, so NMS compares <em>across</em> the edge's width.</p>
+    <p class="nms-synth-copy nms-synth-copy--followup">For a non-axis-aligned gradient, samples at (x ± cosθ, y ± sinθ) can fall between grid pixels. Bilinear interpolation estimates their magnitudes.</p>
   </div>
 
   <!-- Interactive strip: local-maximum check -->
   <div class="nms-strip-demo">
     <div class="comp-section-label">Try it — the local-maximum check</div>
-    <p>This is a one-dimensional slice along the gradient direction. The gold bar is the candidate. NMS checks it against both blue comparison samples; if either is stronger, the candidate is suppressed.</p>
+    <p>The strip below shows one cross-section through the gradient ridge, taken across the edge width along the gradient direction. The gold bar is the candidate; the blue bars are the comparison samples on each side. If either comparison sample is stronger, the candidate is suppressed.</p>
     <div class="nms-presets" id="nmsPresets"></div>
     <div class="nms-profile" id="nmsProfile"></div>
+    <div id="nmsProfileAxisLabel" style="max-width:var(--max-w);margin:.25rem auto 0;text-align:center;font-size:.78rem;color:var(--muted);letter-spacing:.04em">← position across the gradient ridge →</div>
     <div class="nms-comparison" id="nmsComparison"></div>
   </div>
 
   <div class="nms-pixel-panel">
-    <div class="comp-section-label">Try the edge orientation</div>
-    <div class="nms-direction-rules">
-      <span><strong>Vertical edge</strong> → compare horizontally</span>
-      <span><strong>Horizontal edge</strong> → compare vertically</span>
-      <span><strong>Diagonal edge</strong> → compare diagonally, often using interpolation</span>
+    <div class="dt-card" style="margin-bottom:.65rem">
+      <div class="dt-card-title">
+        <span>1</span><strong>Choose an edge orientation</strong>
+      </div>
+      <div class="nms-orientation-pills" id="nmsOrientationPills"></div>
     </div>
-    <div class="nms-orientation-pills" id="nmsOrientationPills"></div>
-    <div class="nms-before-after">
-      <div class="canny-canvas-col">
-        <div class="canvas-label-row">
-          <span class="canvas-label">Before NMS</span>
-          <span class="canvas-sublabel">thick gradient ridge</span>
+    <div class="dt-card">
+      <div class="dt-card-title">
+        <span>2</span><strong>Inspect a candidate pixel</strong>
+      </div>
+      <p style="font-size:.85rem;color:var(--muted2);margin:0 0 .75rem;line-height:1.6">Click or tap a bright ridge pixel to inspect the NMS decision.</p>
+      <div class="nms-before-after">
+        <div class="canny-canvas-col">
+          <div class="canvas-label-row">
+            <span class="canvas-label">Before NMS</span>
+            <span class="canvas-sublabel">thick gradient ridge</span>
+          </div>
+          <div class="nms-pixel-grid">
+            <canvas id="nmsBeforeCanvas" width="72" height="40"></canvas>
+          </div>
         </div>
-        <div class="nms-pixel-grid">
-          <canvas id="nmsBeforeCanvas" width="72" height="40"></canvas>
+        <div class="canny-canvas-col">
+          <div class="canvas-label-row">
+            <span class="canvas-label">After NMS</span>
+            <span class="canvas-sublabel">local peak retained</span>
+          </div>
+          <div class="nms-pixel-grid">
+            <canvas id="nmsAfterCanvas" width="72" height="40"></canvas>
+          </div>
         </div>
       </div>
-      <div class="canny-canvas-col">
-        <div class="canvas-label-row">
-          <span class="canvas-label">After NMS</span>
-          <span class="canvas-sublabel">local peak retained</span>
-        </div>
-        <div class="nms-pixel-grid">
-          <canvas id="nmsAfterCanvas" width="72" height="40"></canvas>
-        </div>
-      </div>
+      <p class="nms-pixel-note" id="nmsPixelNote"></p>
+      <div class="nms-hover-info" id="nmsHoverInfo">Hover or click either panel to inspect a candidate pixel.</div>
     </div>
-    <p class="nms-pixel-note" id="nmsPixelNote"></p>
-    <div class="nms-hover-info" id="nmsHoverInfo">Hover or click either panel to inspect a candidate pixel.</div>
   </div>
 
 </section>
@@ -354,8 +371,7 @@
     <div class="part-number">04</div>
     <div class="part-header-text">
       <h2 class="part-title"><em>D</em>ouble <em>T</em>hresholding</h2>
-      <p class="part-intro">After NMS, each remaining edge pixel has a gradient strength. Double thresholding sorts those pixels into three groups: strong edges, weak edges, and discarded responses.</p>
-      <p class="part-intro part-intro--followup">Double thresholding does not detect new edges. It only classifies the already-thinned NMS candidate pixels by strength: low responses are discarded, middle responses are kept temporarily as weak edges, and high responses are kept as strong edges. In the next step, hysteresis keeps weak edges only if they connect to strong edges.</p>
+      <p class="part-intro">After NMS, each remaining edge pixel has a gradient strength. Double thresholding does not detect new edges — it classifies these already-thinned candidates by strength. Low responses are discarded, middle responses are kept temporarily as <strong>weak edges</strong>, and high responses are kept as <strong>strong edges</strong>. Hysteresis then decides which weak edges survive.</p>
     </div>
   </div>
 
@@ -377,11 +393,13 @@
                 <input type="range" id="dtLoSlider" min="0" max="100" value="20" step="1" oninput="updateDT('lo')" aria-label="Low threshold">
                 <input type="range" id="dtHiSlider" min="0" max="100" value="60" step="1" oninput="updateDT('hi')" aria-label="High threshold">
               </div>
-              <div class="dt-scale-ticks"><span>0% · lowest response</span><span>100% · highest response</span></div>
+              <div class="dt-scale-ticks"><span>0% · no gradient</span><span>100% · peak gradient in image</span></div>
               <div class="dt-scale-labels"><span class="dt-scale-label--discard" id="dtDiscardLabel">Discarded</span><span class="dt-scale-label--weak" id="dtWeakLabel">Weak edge</span><span class="dt-scale-label--strong" id="dtStrongLabel">Strong edge</span></div>
               <div class="dt-handle-values"><span class="dt-handle-value dt-handle-value--low" id="dtLoGuide">T<sub>low</sub> <strong id="dtLoVal">20%</strong></span><span class="dt-handle-value dt-handle-value--high" id="dtHiGuide">T<sub>high</sub> <strong id="dtHiVal">60%</strong></span></div>
             </div>
           </div>
+          <p class="dt-rule-reminder"><strong>Quick rule:</strong> response ≥ T<sub>high</sub> → strong · T<sub>low</sub> ≤ response &lt; T<sub>high</sub> → weak · response &lt; T<sub>low</sub> → discarded</p>
+          <p class="dt-axis-caption">Tiles are evenly spaced for readability; classification uses the numeric strength shown above each tile. Thresholds are percentages of peak gradient magnitude.</p>
         </div>
         <div class="dt-card">
           <div class="dt-card-title"><span>3</span><strong>Pixel fate after double thresholding</strong></div>
@@ -391,10 +409,13 @@
       </div>
     </div>
   </div>
-  <div style="max-width:var(--max-w);margin:1.25rem auto 0;padding:1rem 1.25rem;background:var(--surface);border:1px solid var(--border);border-left:3px solid var(--accent);border-radius:0 var(--rad-sm) var(--rad-sm) 0;font-size:.9rem;color:var(--muted2);line-height:1.75">
-    <strong style="color:var(--ink)">Next — Edge Tracking by Hysteresis.</strong> The classification above feeds directly into the final stage. Hysteresis keeps every strong-edge pixel unconditionally, then traces outward from each strong pixel and recovers adjacent weak-edge pixels that touch it. A weak pixel survives only when it connects — directly or through a chain of other weak pixels — to a strong anchor. Isolated weak responses with no strong connection are discarded.
-  </div>
 </section>
+
+<div class="bridge-section">
+  <div class="bridge-inner">
+    <p class="bridge-text"><strong>Next — Assemble the Full Canny Pipeline.</strong> You have now seen the main ideas separately: smoothing, gradient measurement, thinning, thresholding, and edge tracking. The next section puts them together on one image so you can step through the complete Canny process from blur to final edges.</p>
+  </div>
+</div>
 
 <!-- ═══════════════════════════════════════════════════ SECTION 05 -->
 <section class="part" id="part4">
@@ -402,7 +423,7 @@
     <div class="part-number">05</div>
     <div class="part-header-text">
       <h2 class="part-title">Canny <em>Edge Detection</em></h2>
-      <p class="part-intro">An edge is where pixel intensity changes rapidly. John Canny (1986) designed a five-stage pipeline that finds these transitions reliably, even in noisy photographs. Step through each stage to see what every operation contributes.</p>
+      <p class="part-intro">An edge is where pixel intensity changes rapidly. John Canny (1986) designed a five-stage pipeline that finds these transitions reliably, even in noisy photographs. Step through each stage to see what every operation contributes. This step-through view uses fixed parameters: σ&thinsp;=&thinsp;1.4, T<sub>low</sub>&thinsp;=&thinsp;10%, and T<sub>high</sub>&thinsp;=&thinsp;30%; you can adjust them in <a href="#part5" class="step-mode-link">Section 06</a>.</p>
     </div>
   </div>
 
@@ -435,7 +456,7 @@
   <div class="step-bar" id="sharedStepBar"></div>
 
 <div class="step-note" id="p2-note">
-  <span id="p2-note-text">Gaussian blur reduces noise and small details. High σ = smoother edges.</span>
+  <span id="p2-note-text">Gaussian blur reduces noise and small details. A larger σ smooths more but can merge nearby edges.</span>
   <div class="step-ref step-ref--inline" id="p2-step-ref"></div>
 </div>
 
@@ -444,12 +465,12 @@
       <div class="canny-canvas-col">
         <div class="canvas-label-row">
           <span class="canvas-label">Original</span>
-          <span class="cam-live-badge" id="camLiveBadge" style="display:none">&#9679; Live — click Webcam to freeze</span>
+          <span class="cam-live-badge" id="camLiveBadge" style="display:none">&#9679; Live — click or tap Webcam to freeze</span>
         </div>
         <canvas id="cin" width="340" height="255"></canvas>
       </div>
       <div class="canny-canvas-col">
-        <div class="canvas-label-row"><span class="canvas-label" id="p2-outlabel">Stage Output</span></div>
+        <div class="canvas-label-row"><span class="canvas-label" id="p2-outlabel">Blur Output</span></div>
         <canvas id="cout" width="340" height="255"></canvas>
       </div>
     </div>
@@ -462,19 +483,21 @@
     <div class="part-number">06</div>
     <div class="part-header-text">
       <h2 class="part-title">Hyperparameter <em>Tuning</em></h2>
-      <p class="part-intro">Run through the same five Canny stages again, this time with editable parameters. Change a value at any step and compare how it changes that stage and every stage after it.</p>
+      <p class="part-intro">Run through the same five Canny stages again, this time with editable parameters. Change a value at any step and see how it propagates through every stage after it. Different images call for different values — fine-textured subjects need gentler blur, while high-contrast scenes can handle more aggressive thresholds.</p>
     </div>
   </div>
 
-  <!-- Parameter reference: shown before the interactive panel so users know what they're tuning -->
+  <!-- Compact reminder for the interactive tuning controls -->
   <div class="tuning-reference">
-    <div class="comp-section-label">Parameter reference</div>
-    <p><strong>σ — Gaussian Blur Radius:</strong> smooths the image before edge detection. A low value preserves fine detail; a high value suppresses noise but can merge nearby edges.</p>
-    <p><strong>T<sub>hi</sub> — Strong Edge Threshold:</strong> sets the minimum gradient strength for a definite edge. Too high and real edges disappear; too low and noise becomes an edge.</p>
-    <p><strong>T<sub>lo</sub> — Hysteresis Ratio:</strong> sets the weak-edge floor as a fraction of T<sub>hi</sub>. Weak pixels survive only when they connect to a strong edge.</p>
+    <div class="comp-section-label">Quick parameter guide</div>
+    <div class="tuning-reference-row"><strong>σ — blur strength before gradients</strong><span>higher σ → smoother image, less noise, fewer fine details</span></div>
+    <div class="tuning-reference-row"><strong>T<sub>hi</sub> — strong-edge cutoff</strong><span>higher T<sub>hi</sub> → fewer confirmed strong edges</span></div>
+    <div class="tuning-reference-row"><strong>T<sub>lo</sub> — weak-edge floor</strong><span>higher T<sub>lo</sub> → fewer weak candidates</span></div>
+    <p class="tuning-reference-note"><strong>Constraint:</strong> T<sub>lo</sub> must stay below T<sub>hi</sub>. Thresholds are percentages of the peak gradient magnitude.</p>
   </div>
 
   <div id="tuning-controls-unlocked">
+    <p class="tuning-mode-note"><strong>Tuning mode:</strong> adjust σ, T<sub>low</sub>, and T<sub>high</sub> to see how the pipeline changes.</p>
     <div class="src-cards" id="tuningSrcTabs">
       <button class="src-card on" data-src="sample" onclick="setTuneSrc('sample')">
         <span class="src-card-icon">🖼</span>
@@ -502,16 +525,14 @@
     </div>
 
     <div class="step-bar" id="tuningStepBar"></div>
-    <div class="step-note" id="tuning-step-note">
-      <span id="tuning-note-text"></span>
-      <div class="step-ref step-ref--inline" id="tuning-step-ref"></div>
-    </div>
+
+    <div class="anim-note" id="tuning-controls-note" style="margin-top:.25rem"></div>
 
     <div class="canny-canvases">
       <div class="canny-canvas-col">
         <div class="canvas-label-row">
           <span class="canvas-label">Original</span>
-          <span class="cam-live-badge" id="tuneCamLiveBadge" style="display:none">&#9679; Live — click Webcam to freeze</span>
+          <span class="cam-live-badge" id="tuneCamLiveBadge" style="display:none">&#9679; Live — click or tap Webcam to freeze</span>
         </div>
         <canvas id="p3in" width="340" height="255"></canvas>
       </div>
@@ -521,26 +542,43 @@
       </div>
     </div>
 
-    <div class="tuning-controls">
-      <p class="tuning-controls-note" id="tuning-controls-note"></p>
-      <div class="tuning-ctrl-group">
-        <div class="tuning-param-name">σ — Gaussian Blur Radius <span class="tuning-value-badge" id="p3sv">1.4</span></div>
-        <div class="tuning-slider-row">
-          <input type="range" id="p3sigma" min="0.5" max="4" value="1.4" step="0.1" oninput="p3update()" class="tuning-range">
-        </div>
+    <div class="param-panel">
+      <div class="param-panel-head">
+        <div class="param-panel-title">Adjust Canny parameters</div>
+        <p class="param-panel-helper">Change the standard deviation σ and threshold values to see how Canny keeps or removes edges.</p>
       </div>
-      <div class="tuning-ctrl-group">
-        <div class="tuning-param-name">T<sub>hi</sub> — Strong Edge Threshold <span class="tuning-value-badge" id="p3thv">30%</span></div>
-        <div class="tuning-slider-row">
-          <input type="range" id="p3thi" min="5" max="80" value="30" step="1" oninput="p3update()" class="tuning-range">
+
+      <!-- Gaussian blur -->
+      <div class="param-block param-block--blur">
+        <div class="param-block-header">
+          <span class="param-block-label">Gaussian standard deviation σ</span>
+          <span class="param-block-val">σ&thinsp;=&thinsp;<span id="p3sv">1.4</span></span>
         </div>
+        <p class="param-block-hint">Smooths before gradients.</p>
+        <input type="range" id="p3sigma" min="0.5" max="4" value="1.4" step="0.1" oninput="p3update()" class="param-sigma-range">
       </div>
-      <div class="tuning-ctrl-group">
-        <div class="tuning-param-name">T<sub>lo</sub> — Hysteresis Ratio <span class="tuning-value-badge" id="p3tlv">33%</span></div>
-        <div class="tuning-slider-row">
-          <input type="range" id="p3tlo" min="10" max="90" value="33" step="1" oninput="p3update()" class="tuning-range">
+
+      <!-- Low threshold -->
+      <div class="param-block">
+        <div class="param-block-header">
+          <span class="param-block-label">Low threshold</span>
+          <span class="param-block-val">T<sub>lo</sub>&thinsp;=&thinsp;<span id="p3tlv">10%</span></span>
         </div>
+        <p class="param-block-hint">Controls which weak candidates remain possible.</p>
+        <input type="range" id="p3tlo" min="5" max="90" value="10" step="1" oninput="p3ThreshInput('lo')" class="param-sigma-range">
       </div>
+
+      <!-- High threshold -->
+      <div class="param-block">
+        <div class="param-block-header">
+          <span class="param-block-label">High threshold</span>
+          <span class="param-block-val">T<sub>hi</sub>&thinsp;=&thinsp;<span id="p3thv">30%</span></span>
+        </div>
+        <p class="param-block-hint">Controls which responses at or above T<sub>hi</sub> become strong edges.</p>
+        <input type="range" id="p3thi" min="5" max="90" value="30" step="1" oninput="p3ThreshInput('hi')" class="param-sigma-range">
+      </div>
+
+      <p class="param-constraint-note">Constraint: T<sub>lo</sub> must stay below T<sub>hi</sub>.</p>
     </div>
   </div>
 </section>
@@ -552,126 +590,11 @@
     <div class="footer-sub">An interactive computer vision explainer for CS students</div>
   </div>
   <div class="footer-right">
-    <span class="footer-tag">Convolution · Spatial Filters · Non-Maximum Suppression · Double Thresholding · Canny Edge Detection · Hyperparameter Tuning</span>
+    <span class="footer-tag">Interactive notes on convolution, filters, and Canny edge detection.</span>
   </div>
 </footer>
 
 <script src="script.js?v=35"></script>
-
-<!-- ═══════════════════════════════════════════════════ TUNING POPUP -->
-<div id="tuningPopup" class="popup-overlay" style="display:none">
-  <div class="popup-modal" role="dialog" aria-modal="true">
-    <button class="popup-close-btn" onclick="closeTuningPopup()" aria-label="Close">&#10005;</button>
-
-    <!-- PAGE 1: LEARN -->
-    <div id="popupPage1" class="popup-page">
-      <div class="popup-pg-header">
-        <div>
-          <h2 class="popup-pg-title">What are <em>hyperparameters?</em></h2>
-          <p class="popup-pg-sub">Before you tune, understand what you are tuning.</p>
-        </div>
-      </div>
-      <div class="popup-definition-block">
-        <p><strong>A hyperparameter</strong> is a value you set before running an algorithm — it controls how the algorithm behaves, but is not learned from the data itself. <strong>Hyperparameter tuning</strong> is the process of finding the values that produce the best result for your specific image or task.</p>
-        <p>In Canny edge detection, three hyperparameters shape everything:</p>
-      </div>
-      <div class="popup-param-grid">
-        <div class="popup-param-card">
-          <div class="popup-param-sym">&#963;</div>
-          <div class="popup-param-info">
-            <div class="popup-param-name">Gaussian Blur Radius</div>
-            <div class="popup-param-desc">Smooths the image before edge detection. Low &#963; preserves fine detail but keeps sensor noise. High &#963; suppresses noise but can merge nearby edges together.</div>
-            <div class="popup-param-range">0 (no blur) &#8594; 6 (heavy blur)</div>
-          </div>
-        </div>
-        <div class="popup-param-card">
-          <div class="popup-param-sym">T<sub>hi</sub></div>
-          <div class="popup-param-info">
-            <div class="popup-param-name">Strong Edge Threshold</div>
-            <div class="popup-param-desc">The minimum gradient strength for a pixel to be classified as a definite edge. Too high and real edges vanish. Too low and noise gets promoted to edges.</div>
-            <div class="popup-param-range">5% &#8594; 90% of max gradient</div>
-          </div>
-        </div>
-        <div class="popup-param-card">
-          <div class="popup-param-sym">T<sub>lo</sub></div>
-          <div class="popup-param-info">
-            <div class="popup-param-name">Hysteresis Ratio</div>
-            <div class="popup-param-desc">Sets the weak-edge floor as a fraction of T<sub>hi</sub>. Weak pixels survive only if connected to a strong neighbour. Controls how many faint but real edges are recovered.</div>
-            <div class="popup-param-range">10% &#8594; 90% of T<sub>hi</sub></div>
-          </div>
-        </div>
-      </div>
-      <div class="popup-page-foot">
-        <button class="popup-primary-btn" onclick="showPopupPage(2)">Try the quiz &#8594;</button>
-      </div>
-    </div><!-- /page1 -->
-
-    <!-- PAGE 2: QUIZ -->
-    <div id="popupPage2" class="popup-page" style="display:none">
-      <div class="quiz-topbar">
-        <button class="popup-back-link" onclick="showPopupPage(1)">&#8592; Back</button>
-        <div class="quiz-topbar-title">Find the <em>right combination</em> <span class="quiz-topbar-sub">— adjust until your result matches the target</span></div>
-      </div>
-
-      <div class="quiz-body">
-        <!-- Canvas centred, bigger -->
-        <div class="quiz-canvas-wrap">
-          <div class="quiz-canvas-label">Your result</div>
-          <canvas id="quizOut" width="280" height="210" class="quiz-canvas"></canvas>
-        </div>
-        <!-- Score bar -->
-        <div class="quiz-match-wrap">
-          <div class="quiz-match-track">
-            <div class="quiz-match-fill" id="quizMatchFill" style="width:0%"></div>
-          </div>
-          <div class="quiz-match-label" id="quizMatchLabel">Adjust the sliders to begin</div>
-        </div>
-        <!-- 3 sliders side-by-side in one row -->
-        <div class="quiz-sliders">
-          <div class="tuning-ctrl-group">
-            <div class="tuning-param-name">&#963; — Gaussian Blur Radius <span class="tuning-value-badge" id="quizSigmaBadge">4</span></div>
-            <div class="tuning-slider-row">
-              <span class="tuning-range-label">0</span>
-              <input type="range" id="quizSigma" min="0" max="6" value="4" step="1" oninput="quizUpdate()" class="tuning-range">
-              <span class="tuning-range-label">6</span>
-            </div>
-          </div>
-          <div class="tuning-ctrl-group">
-            <div class="tuning-param-name">T<sub>hi</sub> — Strong Edge Threshold <span class="tuning-value-badge" id="quizThiBadge">60%</span></div>
-            <div class="tuning-slider-row">
-              <span class="tuning-range-label">5%</span>
-              <input type="range" id="quizThi" min="5" max="90" value="60" step="1" oninput="quizUpdate()" class="tuning-range">
-              <span class="tuning-range-label">90%</span>
-            </div>
-          </div>
-          <div class="tuning-ctrl-group">
-            <div class="tuning-param-name">T<sub>lo</sub> — Hysteresis Ratio <span class="tuning-value-badge" id="quizTloBadge">20%</span></div>
-            <div class="tuning-slider-row">
-              <span class="tuning-range-label">10%</span>
-              <input type="range" id="quizTlo" min="10" max="90" value="20" step="1" oninput="quizUpdate()" class="tuning-range">
-              <span class="tuning-range-label">90%</span>
-            </div>
-          </div>
-        </div>
-      </div>
-
-    </div><!-- /page2 -->
-  </div><!-- /popup-modal -->
-</div><!-- /tuningPopup -->
-
-
-<!-- ═══════════════════════════════════════════════════ SUCCESS POPUP -->
-<div id="successPopup" class="popup-overlay" style="display:none">
-  <div class="popup-modal popup-modal--sm success-popup" role="dialog" aria-modal="true">
-    <button class="popup-close-btn" onclick="closeSuccessPopup()" aria-label="Close">&#10005;</button>
-    <div class="success-popup-icon">&#10003;</div>
-    <h2 class="success-popup-title">You found the optimal parameters!</h2>
-    <p class="success-popup-text">Each image may need different values — the lizard's fine scales call for gentle blur, while a bold architectural photo can handle more aggressive settings.</p>
-    <div class="popup-page-foot" style="justify-content:center; margin-top:1.5rem;">
-      <button class="popup-primary-btn" onclick="enterTuning()">Try with more images &#8594;</button>
-    </div>
-  </div>
-</div><!-- /successPopup -->
 
 </body>
 </html>
