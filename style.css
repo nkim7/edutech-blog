@@ -677,7 +677,7 @@ sub, sup { font-size: 0.8em; }
 .filter-example-col {
   grid-column: 1 / -1;
   border-top: 1px solid var(--border);
-  padding-top: 1rem;
+  padding: 1rem 1.25rem 1.5rem;
 }
 .filter-desc-text {
   font-size: 1rem;

@@ -485,7 +485,7 @@ function selectFilter(id) {
   }
 
   document.getElementById('fdesc').textContent = f.desc;
-  document.getElementById('p1-outlabel').textContent = f.kd2 ? 'Output — Gradient Magnitude' : 'Output — ' + f.label;
+  document.getElementById('p1-outlabel').textContent = 'Output';
   document.getElementById('sobelDisplayConvention').style.display = id === 'sobel' ? '' : 'none';
   renderCalcExample(id, f);
   applyFilter();
@@ -543,9 +543,9 @@ function renderCalcExample(id, f, activeOutput = 0) {
   // (~16px each), a minimum arrow width (64px), and left padding (4px).
   const matrixTotalW = Math.max(200, containerW - 4 - 6 * COL_GAP - 32 - 64);
   const S = Math.floor(matrixTotalW / 4); // equal target width per matrix block
-  const C_IN = Math.min(30, Math.max(14, Math.floor((S - 9) / 4))); // 4×4 cell
-  const C_K  = Math.min(38, Math.max(16, Math.floor((S - 6) / 3))); // 3×3 cell
-  const C_2  = Math.min(50, Math.max(22, Math.floor((S - 3) / 2))); // 2×2 cell
+  const C_IN = Math.min(24, Math.max(14, Math.floor((S - 9) / 4))); // 4×4 cell
+  const C_K  = Math.min(28, Math.max(16, Math.floor((S - 6) / 3))); // 3×3 cell
+  const C_2  = Math.min(36, Math.max(22, Math.floor((S - 3) / 2))); // 2×2 cell
   const GAP = 3;
 
   const windowColors = ['#f59e0b', '#3b82f6', '#10b981', '#a855f7'];
@@ -573,9 +573,7 @@ function renderCalcExample(id, f, activeOutput = 0) {
   };
   const outputs = [0, 1, 2, 3].map(calculateOutput);
 
-  // ── Layout: 7-column × 3-row CSS grid ─────────────────────────────
-  // padding-left: 6px so the window-outline's -2px left overhang is never
-  // clipped (outline sits at 4px inside the grid's padding box).
+  // ── Layout: 7-column CSS grid ─────────────────────────────────────
   const grid = document.createElement('div');
   grid.style.cssText = [
     'display:grid',
@@ -584,8 +582,7 @@ function renderCalcExample(id, f, activeOutput = 0) {
     `column-gap:${COL_GAP}px`,
     'row-gap:0',
     'align-items:center',
-    'padding-left:4px',
-    'overflow-x:auto',
+    'padding:0 0 6px 6px',
   ].join(';');
 
   // ── Cell helpers ──────────────────────────────────────────────────
@@ -695,7 +692,7 @@ function renderCalcExample(id, f, activeOutput = 0) {
     arrowRow.appendChild(line);
     arrowRow.appendChild(tip);
     const note = document.createElement('div');
-    note.style.cssText = 'font-size:.64rem;color:var(--muted);font-family:var(--mono);white-space:nowrap;text-align:center;line-height:1';
+    note.style.cssText = 'font-size:.64rem;color:var(--muted);font-family:var(--mono);white-space:normal;word-break:break-word;text-align:center;line-height:1.3';
     note.textContent = postNote;
     wrap.appendChild(arrowRow);
     wrap.appendChild(note);
