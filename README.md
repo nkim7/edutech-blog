@@ -5,19 +5,22 @@ An interactive educational blog about spatial filters and Canny edge detection, 
 ## Files
 
 ```
-cv-blog/
-├── index.html   — HTML structure (all 6 sections)
-├── style.css    — Design system, layout, typography
-├── script.js    — All interactive logic (convolution animator, filter explorer, Canny pipeline)
-└── README.md    — This file
+edutech-blog/
+├── index.html        — HTML structure (all 6 sections)
+├── style.css         — Design system, layout, typography
+├── script.js         — All interactive logic (convolution animator, filter explorer, Canny pipeline)
+├── architecture.jpg  — Architecture diagram image
+├── lizard.jpg        — Sample image for filter demos
+├── portrait.jpg      — Sample image for filter demos
+└── README.md         — This file
 ```
 
 ## Deploying to GitHub Pages
 
-1. Create a new GitHub repo (e.g. `cv-blog`)
-2. Copy these three files into the repo root
+1. Create a new GitHub repo (e.g. `edutech-blog`)
+2. Copy all files into the repo root
 3. Go to **Settings → Pages → Branch: main / root** → Save
-4. Your blog will be live at `https://<your-username>.github.io/cv-blog/`
+4. Your blog will be live at `https://<your-username>.github.io/edutech-blog/`
 
 ## Structure
 
